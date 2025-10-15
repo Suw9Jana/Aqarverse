@@ -32,10 +32,10 @@ export const CompanyCard = ({ company }: CompanyCardProps) => {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-xl text-card-foreground mb-2 group-hover:text-primary transition-colors duration-300 truncate">
+            <h3 className="font-semibold text-xl text-card-foreground mb-2 group-hover:text-white transition-colors duration-300 truncate">
               {company.name}
             </h3>
-            <p className="text-sm text-muted-foreground font-light tracking-wide">{company.city}</p>
+            <p className="text-sm text-muted-foreground group-hover:text-white/90 font-light tracking-wide transition-colors duration-300">{company.city}</p>
           </div>
         </div>
       </CardContent>
