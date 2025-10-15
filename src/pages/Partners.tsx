@@ -4,7 +4,7 @@ import { CompanyCard } from "@/components/CompanyCard";
 import { Footer } from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { Search, Sparkles } from "lucide-react";
 import { mockCompanies } from "@/data/mockData";
 import riyadhSkyline from "@/assets/riyadh-skyline.jpg";
 
@@ -139,16 +139,7 @@ const Partners = () => {
           )}
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              
+            <div className="flex items-center justify-center overflow-x-auto scroll-smooth max-w-full px-4">
               <div className="flex items-center gap-1">
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                   <Button
@@ -156,21 +147,12 @@ const Partners = () => {
                     variant={currentPage === page ? "default" : "outline"}
                     size="sm"
                     onClick={() => setCurrentPage(page)}
-                    className="min-w-[40px]"
+                    className="min-w-[40px] flex-shrink-0"
                   >
                     {page}
                   </Button>
                 ))}
               </div>
-
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
             </div>
           )}
         </div>
