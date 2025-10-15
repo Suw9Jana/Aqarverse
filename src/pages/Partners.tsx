@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Navbar } from "@/components/Navbar";
 import { CompanyCard } from "@/components/CompanyCard";
 import { Footer } from "@/components/Footer";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Sparkles } from "lucide-react";
@@ -11,6 +12,7 @@ import riyadhSkyline from "@/assets/riyadh-skyline.jpg";
 const ITEMS_PER_LOAD = 6;
 
 const Partners = () => {
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [itemsToShow, setItemsToShow] = useState(ITEMS_PER_LOAD);
   const [visibleCards, setVisibleCards] = useState<Set<number>>(new Set());
@@ -72,15 +74,13 @@ const Partners = () => {
           <div className="max-w-4xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-background/10 backdrop-blur-sm border border-white/20 mb-6 animate-fade-in">
               <Sparkles className="h-4 w-4 text-accent" />
-              <span className="text-sm font-medium text-white">Powered by Virtual Reality Technology</span>
+              <span className="text-sm font-medium text-white">{t("poweredBy")}</span>
             </div>
             <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight animate-fade-in bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/80">
-              Welcome to AqarVerse
+              {t("welcomeTitle")}
             </h1>
             <p className="text-xl md:text-2xl leading-relaxed max-w-3xl mx-auto font-light text-white/90 animate-fade-in">
-              Bridging the future of real estate with immersive virtual experiences. 
-              We connect leading property companies to the metaverse, transforming how 
-              people explore, experience, and engage with properties in stunning 3D environments.
+              {t("welcomeDescription")}
             </p>
           </div>
         </div>
@@ -92,10 +92,10 @@ const Partners = () => {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              Our Trusted Partners
+              {t("trustedPartners")}
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto font-light">
-              Discover our network of premium real estate companies pioneering the virtual property experience
+              {t("partnersDescription")}
             </p>
           </div>
 
@@ -104,7 +104,7 @@ const Partners = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Search by company name or city..."
+                placeholder={t("searchPlaceholder")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 h-12 rounded-xl border-border/50 focus:border-primary/30 transition-colors"
@@ -132,7 +132,7 @@ const Partners = () => {
 
           {filteredCompanies.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">No companies found matching your search.</p>
+              <p className="text-muted-foreground">{t("noResults")}</p>
             </div>
           )}
 
@@ -143,7 +143,7 @@ const Partners = () => {
                 size="lg"
                 className="min-w-[200px]"
               >
-                Load More
+                {t("loadMore")}
               </Button>
             </div>
           )}

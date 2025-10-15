@@ -1,8 +1,11 @@
 import { Building2, Mail, Phone, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useLanguage } from "@/contexts/LanguageContext";
 import logo from "@/assets/aqarverse-logo.jpeg";
 
 export const Footer = () => {
+  const { t } = useLanguage();
+  
   return (
     <footer className="bg-muted/30 border-t border-border">
       <div className="container mx-auto px-4 py-12">
@@ -14,27 +17,27 @@ export const Footer = () => {
               <span className="text-xl font-bold text-foreground">Aqarverse</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Your trusted partner in real estate solutions across Saudi Arabia.
+              {t("companyDescription")}
             </p>
           </div>
 
           {/* Quick Links */}
           <div>
-            <h3 className="font-semibold text-foreground mb-4">Quick Links</h3>
+            <h3 className="font-semibold text-foreground mb-4">{t("quickLinks")}</h3>
             <ul className="space-y-2">
               <li>
                 <Link to="/partners" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  Partners
+                  {t("partners")}
                 </Link>
               </li>
               <li>
                 <Link to="/register" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  Register
+                  {t("register")}
                 </Link>
               </li>
               <li>
                 <Link to="/login" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  Login
+                  {t("login")}
                 </Link>
               </li>
             </ul>
@@ -42,29 +45,29 @@ export const Footer = () => {
 
           {/* Services */}
           <div>
-            <h3 className="font-semibold text-foreground mb-4">Services</h3>
+            <h3 className="font-semibold text-foreground mb-4">{t("services")}</h3>
             <ul className="space-y-2">
-              <li className="text-sm text-muted-foreground">Property Management</li>
-              <li className="text-sm text-muted-foreground">Real Estate Consulting</li>
-              <li className="text-sm text-muted-foreground">Investment Advisory</li>
+              <li className="text-sm text-muted-foreground">{t("propertyManagement")}</li>
+              <li className="text-sm text-muted-foreground">{t("realEstateConsulting")}</li>
+              <li className="text-sm text-muted-foreground">{t("investmentAdvisory")}</li>
             </ul>
           </div>
 
           {/* Contact Info */}
           <div>
-            <h3 className="font-semibold text-foreground mb-4">Contact Us</h3>
+            <h3 className="font-semibold text-foreground mb-4">{t("contactUs")}</h3>
             <ul className="space-y-3">
               <li className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Mail className="h-4 w-4" />
-                <span>info@aqarverse.com</span>
+                <span>{t("email")}</span>
               </li>
               <li className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Phone className="h-4 w-4" />
-                <span>+966 XX XXX XXXX</span>
+                <span>{t("phone")}</span>
               </li>
               <li className="flex items-center gap-2 text-sm text-muted-foreground">
                 <MapPin className="h-4 w-4" />
-                <span>Riyadh, Saudi Arabia</span>
+                <span>{t("location")}</span>
               </li>
             </ul>
           </div>
@@ -74,14 +77,14 @@ export const Footer = () => {
         <div className="mt-8 pt-8 border-t border-border">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} Aqarverse. All rights reserved.
+              © {new Date().getFullYear()} {t("rightsReserved")}
             </p>
             <div className="flex gap-6">
               <Link to="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                Privacy Policy
+                {t("privacyPolicy")}
               </Link>
               <Link to="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                Terms of Service
+                {t("termsOfService")}
               </Link>
             </div>
           </div>
