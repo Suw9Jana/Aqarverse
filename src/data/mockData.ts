@@ -1,0 +1,56 @@
+import { Company, Property } from "@/types";
+
+export const mockCompanies: Company[] = [
+  { id: '1', name: 'Dubai Elite Properties', city: 'Dubai', logo: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=200&h=200&fit=crop' },
+  { id: '2', name: 'Riyadh Real Estate', city: 'Riyadh', logo: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=200&h=200&fit=crop' },
+  { id: '3', name: 'Abu Dhabi Developments', city: 'Abu Dhabi', logo: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=200&h=200&fit=crop' },
+  { id: '4', name: 'Jeddah Tower Group', city: 'Jeddah', logo: 'https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=200&h=200&fit=crop' },
+  { id: '5', name: 'Doha Properties International', city: 'Doha', logo: 'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=200&h=200&fit=crop' },
+  { id: '6', name: 'Cairo Estates', city: 'Cairo', logo: 'https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=200&h=200&fit=crop' },
+  { id: '7', name: 'Kuwait Urban Developers', city: 'Kuwait City', logo: 'https://images.unsplash.com/photo-1486718448742-163732cd1544?w=200&h=200&fit=crop' },
+  { id: '8', name: 'Manama Heights', city: 'Manama', logo: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=200&h=200&fit=crop' },
+  { id: '9', name: 'Sharjah Property Solutions', city: 'Sharjah', logo: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=200&h=200&fit=crop' },
+  { id: '10', name: 'Muscat Realty Group', city: 'Muscat', logo: 'https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=200&h=200&fit=crop' },
+  { id: '11', name: 'Amman Modern Living', city: 'Amman', logo: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=200&h=200&fit=crop' },
+  { id: '12', name: 'Beirut Luxury Homes', city: 'Beirut', logo: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=200&h=200&fit=crop' },
+];
+
+export const mockProperties: Property[] = [
+  {
+    id: 'p1',
+    companyId: '1',
+    companyName: 'Dubai Elite Properties',
+    title: 'Luxury Marina Apartment',
+    type: 'Apartment',
+    location: 'Dubai Marina',
+    description: 'Stunning waterfront apartment with panoramic views',
+    status: 'approved',
+    createdAt: new Date('2025-09-15'),
+    submittedAt: new Date('2025-09-16'),
+  },
+  {
+    id: 'p2',
+    companyId: '2',
+    companyName: 'Riyadh Real Estate',
+    title: 'Modern Office Tower',
+    type: 'Commercial',
+    location: 'King Fahd Road',
+    description: 'State-of-the-art office space in prime location',
+    status: 'submitted',
+    createdAt: new Date('2025-10-01'),
+    submittedAt: new Date('2025-10-05'),
+  },
+  {
+    id: 'p3',
+    companyId: '1',
+    companyName: 'Dubai Elite Properties',
+    title: 'Beach Villa',
+    type: 'Villa',
+    location: 'Palm Jumeirah',
+    description: 'Exclusive beachfront villa with private pool',
+    status: 'rejected',
+    rejectionReason: 'Model quality does not meet platform standards. Please re-upload with higher resolution textures.',
+    createdAt: new Date('2025-09-20'),
+    submittedAt: new Date('2025-09-22'),
+  },
+];
