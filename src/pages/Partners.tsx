@@ -1,128 +1,157 @@
 import { useState, useEffect, useRef } from "react";
 import { Navbar } from "@/components/Navbar";
 import { CompanyCard } from "@/components/CompanyCard";
+import { Footer } from "@/components/Footer";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { Search, Sparkles } from "lucide-react";
 import { mockCompanies } from "@/data/mockData";
-import buildingsOverlay from "@/assets/buildings-overlay.png";
-const ITEMS_PER_PAGE = 6;
+import riyadhSkyline from "@/assets/riyadh-skyline.jpg";
+
+const ITEMS_PER_LOAD = 6;
+
 const Partners = () => {
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsToShow, setItemsToShow] = useState(ITEMS_PER_LOAD);
   const [visibleCards, setVisibleCards] = useState<Set<number>>(new Set());
   const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
-  const filteredCompanies = mockCompanies.filter(company => company.name.toLowerCase().includes(searchQuery.toLowerCase()) || company.city.toLowerCase().includes(searchQuery.toLowerCase()));
-  const totalPages = Math.ceil(filteredCompanies.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedCompanies = filteredCompanies.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  const filteredCompanies = mockCompanies.filter(
+    (company) =>
+      company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      company.city.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const displayedCompanies = filteredCompanies.slice(0, itemsToShow);
+  const hasMore = itemsToShow < filteredCompanies.length;
+
   useEffect(() => {
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        const index = Number(entry.target.getAttribute('data-index'));
-        if (entry.isIntersecting) {
-          setVisibleCards(prev => new Set([...prev, index]));
-        }
-      });
-    }, {
-      threshold: 0.1
-    });
-    cardsRef.current.forEach(card => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const index = Number(entry.target.getAttribute('data-index'));
+          if (entry.isIntersecting) {
+            setVisibleCards((prev) => new Set([...prev, index]));
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    cardsRef.current.forEach((card) => {
       if (card) observer.observe(card);
     });
+
     return () => observer.disconnect();
-  }, [paginatedCompanies]);
+  }, [displayedCompanies]);
+
   useEffect(() => {
+    setItemsToShow(ITEMS_PER_LOAD);
     setVisibleCards(new Set());
     cardsRef.current = [];
-  }, [currentPage]);
-  return <div className="min-h-screen bg-background">
+  }, [searchQuery]);
+
+  const loadMore = () => {
+    setItemsToShow(prev => prev + ITEMS_PER_LOAD);
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
       <Navbar />
       
       {/* Hero Section with Buildings Background */}
-      <section className="relative overflow-hidden" style={{
-      background: 'var(--gradient-hero)'
-    }}>
-        <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover opacity-60" style={{
-        filter: 'brightness(0.7)'
-      }}>
-          <source src="https://cdn.pixabay.com/video/2022/11/09/138393-769997526_large.mp4" type="video/mp4" />
-        </video>
+      <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-40"
+          style={{ 
+            backgroundImage: `url(${riyadhSkyline})`
+          }}
+        />
         
         <div className="container mx-auto px-4 py-20 md:py-28 relative z-10">
           <div className="max-w-4xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-background/10 backdrop-blur-sm border border-white/20 mb-6 animate-fade-in">
               <Sparkles className="h-4 w-4 text-accent" />
-              <span className="text-sm font-medium text-white">Powered by Virtual Reality Technology</span>
+              <span className="text-sm font-medium text-white">{t("poweredBy")}</span>
             </div>
-            <h1 className="text-5xl font-bold mb-6 tracking-tight animate-fade-in bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/80 md:text-7xl mx-0 py-[10px]">
-              Welcome to AqarVerse
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight animate-fade-in bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/80">
+              {t("welcomeTitle")}
             </h1>
             <p className="text-xl md:text-2xl leading-relaxed max-w-3xl mx-auto font-light text-white/90 animate-fade-in">
-              Bridging the future of real estate with immersive virtual experiences. 
-              We connect leading property companies to the metaverse, transforming how 
-              people explore, experience, and engage with properties in stunning 3D environments.
+              {t("welcomeDescription")}
             </p>
           </div>
         </div>
         
-        <div className="absolute bottom-0 left-0 right-0 h-px" style={{
-        background: 'var(--gradient-accent)'
-      }}></div>
+        <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: 'var(--gradient-accent)' }}></div>
       </section>
 
       <main className="container mx-auto px-4 py-16 md:py-20">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              Our Trusted Partners
+              {t("trustedPartners")}
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto font-light">
-              Discover our network of premium real estate companies pioneering the virtual property experience
+              {t("partnersDescription")}
             </p>
           </div>
 
           <div className="mb-12 max-w-md mx-auto">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input type="text" placeholder="Search by company name or city..." value={searchQuery} onChange={e => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }} className="pl-10 h-12 rounded-xl border-border/50 focus:border-primary/30 transition-colors" />
+              <Input
+                type="text"
+                placeholder={t("searchPlaceholder")}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-12 rounded-xl border-border/50 focus:border-primary/30 transition-colors"
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-            {paginatedCompanies.map((company, index) => <div key={company.id} ref={el => cardsRef.current[index] = el} data-index={index} className={`transition-all duration-700 ${visibleCards.has(index) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`} style={{
-            transitionDelay: `${index * 100}ms`
-          }}>
+            {displayedCompanies.map((company, index) => (
+              <div
+                key={company.id}
+                ref={(el) => (cardsRef.current[index] = el)}
+                data-index={index}
+                className={`transition-all duration-700 ${
+                  visibleCards.has(index)
+                    ? 'opacity-100 translate-y-0'
+                    : 'opacity-0 translate-y-12'
+                }`}
+                style={{ transitionDelay: `${index * 100}ms` }}
+              >
                 <CompanyCard company={company} />
-              </div>)}
+              </div>
+            ))}
           </div>
 
-          {filteredCompanies.length === 0 && <div className="text-center py-12">
-              <p className="text-muted-foreground">No companies found matching your search.</p>
-            </div>}
+          {filteredCompanies.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">{t("noResults")}</p>
+            </div>
+          )}
 
-          {totalPages > 1 && <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
-                <ChevronLeft className="h-4 w-4" />
+          {hasMore && (
+            <div className="flex justify-center">
+              <Button 
+                onClick={loadMore}
+                size="lg"
+                className="min-w-[200px]"
+              >
+                {t("loadMore")}
               </Button>
-              
-              <div className="flex items-center gap-1">
-                {Array.from({
-              length: totalPages
-            }, (_, i) => i + 1).map(page => <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" onClick={() => setCurrentPage(page)} className="min-w-[40px]">
-                    {page}
-                  </Button>)}
-              </div>
-
-              <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>}
+            </div>
+          )}
         </div>
       </main>
-    </div>;
+      <Footer />
+    </div>
+  );
 };
+
 export default Partners;
