@@ -9,13 +9,14 @@ interface CompanyCardProps {
 export const CompanyCard = ({ company }: CompanyCardProps) => {
   return (
     <Card 
-      className="group relative overflow-hidden border-border/40 transition-all duration-500 hover:-translate-y-2 hover:border-primary/20 cursor-pointer"
+      className="group relative overflow-hidden border-border/40 transition-all duration-500 hover:-translate-y-2 hover:border-primary/30 cursor-pointer animate-fade-in"
       style={{ 
         boxShadow: 'var(--shadow-elegant)',
         background: 'var(--gradient-card)'
       }}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: 'linear-gradient(135deg, hsl(195 85% 55% / 0.05), hsl(280 85% 65% / 0.05))' }}></div>
+      <div className="absolute -inset-px rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: 'var(--gradient-accent)', padding: '1px', zIndex: -1 }}></div>
       
       <CardContent className="p-8 relative">
         <div className="flex items-center gap-5">

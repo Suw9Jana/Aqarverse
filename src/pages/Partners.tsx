@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { CompanyCard } from "@/components/CompanyCard";
+import { ThreeBackground } from "@/components/ThreeBackground";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { mockCompanies } from "@/data/mockData";
 
 const ITEMS_PER_PAGE = 6;
@@ -29,21 +30,28 @@ const Partners = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      {/* Hero Section */}
+      {/* Hero Section with 3D Background */}
       <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
-        <div className="container mx-auto px-4 py-20 md:py-28">
+        <ThreeBackground />
+        
+        <div className="container mx-auto px-4 py-20 md:py-28 relative z-10">
           <div className="max-w-4xl mx-auto text-center">
-            <h1 className="text-5xl md:text-6xl font-bold text-foreground mb-6 tracking-tight">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-background/10 backdrop-blur-sm border border-white/20 mb-6 animate-fade-in">
+              <Sparkles className="h-4 w-4 text-accent" />
+              <span className="text-sm font-medium text-white">Powered by Virtual Reality Technology</span>
+            </div>
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight animate-fade-in bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/80">
               Welcome to AqarVerse
             </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground leading-relaxed max-w-3xl mx-auto font-light">
+            <p className="text-xl md:text-2xl leading-relaxed max-w-3xl mx-auto font-light text-white/90 animate-fade-in">
               Bridging the future of real estate with immersive virtual experiences. 
               We connect leading property companies to the metaverse, transforming how 
               people explore, experience, and engage with properties in stunning 3D environments.
             </p>
           </div>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent"></div>
+        
+        <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: 'var(--gradient-accent)' }}></div>
       </section>
 
       <main className="container mx-auto px-4 py-16 md:py-20">
