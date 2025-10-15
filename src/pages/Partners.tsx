@@ -59,15 +59,16 @@ const Partners = () => {
       
       {/* Hero Section with Buildings Background */}
       <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
-        <div 
-          className="absolute inset-0"
-          style={{ 
-            backgroundImage: `url(${buildingsOverlay})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center center',
-            backgroundRepeat: 'no-repeat'
-          }}
-        />
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover opacity-60"
+          style={{ filter: 'brightness(0.7)' }}
+        >
+          <source src="https://cdn.pixabay.com/video/2022/11/09/138393-769997526_large.mp4" type="video/mp4" />
+        </video>
         
         <div className="container mx-auto px-4 py-20 md:py-28 relative z-10">
           <div className="max-w-4xl mx-auto text-center">
