@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { Navbar } from "@/components/Navbar";
 import { CompanyCard } from "@/components/CompanyCard";
-import { ThreeBackground } from "@/components/ThreeBackground";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { mockCompanies } from "@/data/mockData";
+import buildingsOverlay from "@/assets/buildings-overlay.png";
 
 const ITEMS_PER_PAGE = 6;
 
@@ -57,9 +57,12 @@ const Partners = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      {/* Hero Section with 3D Background */}
+      {/* Hero Section with Buildings Background */}
       <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
-        <ThreeBackground />
+        <div 
+          className="absolute inset-0 opacity-20 bg-center bg-cover"
+          style={{ backgroundImage: `url(${buildingsOverlay})` }}
+        />
         
         <div className="container mx-auto px-4 py-20 md:py-28 relative z-10">
           <div className="max-w-4xl mx-auto text-center">
