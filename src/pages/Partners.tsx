@@ -60,7 +60,7 @@ const Partners = () => {
       {/* Hero Section with Buildings Background */}
       <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
         <div 
-          className="absolute inset-0 opacity-20"
+          className="absolute inset-0"
           style={{ 
             backgroundImage: `url(${buildingsOverlay})`,
             backgroundSize: 'cover',
