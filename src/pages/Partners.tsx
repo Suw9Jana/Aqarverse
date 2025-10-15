@@ -8,11 +8,11 @@ import { Search, Sparkles } from "lucide-react";
 import { mockCompanies } from "@/data/mockData";
 import riyadhSkyline from "@/assets/riyadh-skyline.jpg";
 
-const ITEMS_PER_PAGE = 6;
+const ITEMS_PER_LOAD = 6;
 
 const Partners = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsToShow, setItemsToShow] = useState(ITEMS_PER_LOAD);
   const [visibleCards, setVisibleCards] = useState<Set<number>>(new Set());
   const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -22,12 +22,8 @@ const Partners = () => {
       company.city.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const totalPages = Math.ceil(filteredCompanies.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedCompanies = filteredCompanies.slice(
-    startIndex,
-    startIndex + ITEMS_PER_PAGE
-  );
+  const displayedCompanies = filteredCompanies.slice(0, itemsToShow);
+  const hasMore = itemsToShow < filteredCompanies.length;
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -47,12 +43,17 @@ const Partners = () => {
     });
 
     return () => observer.disconnect();
-  }, [paginatedCompanies]);
+  }, [displayedCompanies]);
 
   useEffect(() => {
+    setItemsToShow(ITEMS_PER_LOAD);
     setVisibleCards(new Set());
     cardsRef.current = [];
-  }, [currentPage]);
+  }, [searchQuery]);
+
+  const loadMore = () => {
+    setItemsToShow(prev => prev + ITEMS_PER_LOAD);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -105,17 +106,14 @@ const Partners = () => {
                 type="text"
                 placeholder="Search by company name or city..."
                 value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1);
-                }}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 h-12 rounded-xl border-border/50 focus:border-primary/30 transition-colors"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-            {paginatedCompanies.map((company, index) => (
+            {displayedCompanies.map((company, index) => (
               <div
                 key={company.id}
                 ref={(el) => (cardsRef.current[index] = el)}
@@ -138,21 +136,15 @@ const Partners = () => {
             </div>
           )}
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center overflow-x-auto scroll-smooth max-w-full px-4">
-              <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <Button
-                    key={page}
-                    variant={currentPage === page ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCurrentPage(page)}
-                    className="min-w-[40px] flex-shrink-0"
-                  >
-                    {page}
-                  </Button>
-                ))}
-              </div>
+          {hasMore && (
+            <div className="flex justify-center">
+              <Button 
+                onClick={loadMore}
+                size="lg"
+                className="min-w-[200px]"
+              >
+                Load More
+              </Button>
             </div>
           )}
         </div>
