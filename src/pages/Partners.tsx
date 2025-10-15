@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Navbar } from "@/components/Navbar";
 import { CompanyCard } from "@/components/CompanyCard";
+import { Footer } from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
@@ -174,6 +175,7 @@ const Partners = () => {
           )}
         </div>
       </main>
+      <Footer />
     </div>
   );
 };
