@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { mockCompanies } from "@/data/mockData";
-import buildingsOverlay from "@/assets/buildings-overlay.png";
+import riyadhSkyline from "@/assets/riyadh-skyline.jpg";
 
 const ITEMS_PER_PAGE = 6;
 
@@ -59,16 +59,12 @@ const Partners = () => {
       
       {/* Hero Section with Buildings Background */}
       <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover opacity-60"
-          style={{ filter: 'brightness(0.7)' }}
-        >
-          <source src="https://cdn.pixabay.com/video/2022/11/09/138393-769997526_large.mp4" type="video/mp4" />
-        </video>
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-40"
+          style={{ 
+            backgroundImage: `url(${riyadhSkyline})`
+          }}
+        />
         
         <div className="container mx-auto px-4 py-20 md:py-28 relative z-10">
           <div className="max-w-4xl mx-auto text-center">
