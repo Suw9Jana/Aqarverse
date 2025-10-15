@@ -38,6 +38,13 @@ All colors MUST be HSL.
 
     --radius: 0.75rem;
 
+    /* Premium gradients and effects */
+    --gradient-hero: linear-gradient(135deg, hsl(0 0% 100%) 0%, hsl(195 20% 97%) 50%, hsl(195 25% 95%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(195 10% 98%) 100%);
+    --shadow-elegant: 0 4px 20px -4px hsl(195 45% 15% / 0.08);
+    --shadow-hover: 0 12px 40px -8px hsl(195 45% 15% / 0.15);
+    --transition-premium: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+
     --sidebar-background: 0 0% 98%;
 
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -83,6 +90,13 @@ All colors MUST be HSL.
     --border: 195 40% 18%;
     --input: 195 40% 18%;
     --ring: 45 95% 62%;
+    
+    /* Dark mode premium effects */
+    --gradient-hero: linear-gradient(135deg, hsl(195 45% 10%) 0%, hsl(195 40% 12%) 50%, hsl(195 35% 14%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(195 40% 13%) 0%, hsl(195 40% 11%) 100%);
+    --shadow-elegant: 0 4px 20px -4px hsl(0 0% 0% / 0.3);
+    --shadow-hover: 0 12px 40px -8px hsl(0 0% 0% / 0.5);
+    
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;

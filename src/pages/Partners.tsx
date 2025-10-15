@@ -29,18 +29,35 @@ const Partners = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-foreground mb-4">
-              Our Partner Companies
+      {/* Hero Section */}
+      <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
+        <div className="container mx-auto px-4 py-20 md:py-28">
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-5xl md:text-6xl font-bold text-foreground mb-6 tracking-tight">
+              Welcome to AqarVerse
             </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Explore our network of trusted real estate partners across the region
+            <p className="text-xl md:text-2xl text-muted-foreground leading-relaxed max-w-3xl mx-auto font-light">
+              Bridging the future of real estate with immersive virtual experiences. 
+              We connect leading property companies to the metaverse, transforming how 
+              people explore, experience, and engage with properties in stunning 3D environments.
+            </p>
+          </div>
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent"></div>
+      </section>
+
+      <main className="container mx-auto px-4 py-16 md:py-20">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+              Our Trusted Partners
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto font-light">
+              Discover our network of premium real estate companies pioneering the virtual property experience
             </p>
           </div>
 
-          <div className="mb-8 max-w-md mx-auto">
+          <div className="mb-12 max-w-md mx-auto">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
@@ -51,12 +68,12 @@ const Partners = () => {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="pl-10"
+                className="pl-10 h-12 rounded-xl border-border/50 focus:border-primary/30 transition-colors"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
             {paginatedCompanies.map((company) => (
               <CompanyCard key={company.id} company={company} />
             ))}
