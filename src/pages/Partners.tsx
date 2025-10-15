@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navbar } from "@/components/Navbar";
 import { CompanyCard } from "@/components/CompanyCard";
 import { ThreeBackground } from "@/components/ThreeBackground";
@@ -12,6 +12,8 @@ const ITEMS_PER_PAGE = 6;
 const Partners = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [visibleCards, setVisibleCards] = useState<Set<number>>(new Set());
+  const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
 
   const filteredCompanies = mockCompanies.filter(
     (company) =>
@@ -25,6 +27,31 @@ const Partners = () => {
     startIndex,
     startIndex + ITEMS_PER_PAGE
   );
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const index = Number(entry.target.getAttribute('data-index'));
+          if (entry.isIntersecting) {
+            setVisibleCards((prev) => new Set([...prev, index]));
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    cardsRef.current.forEach((card) => {
+      if (card) observer.observe(card);
+    });
+
+    return () => observer.disconnect();
+  }, [paginatedCompanies]);
+
+  useEffect(() => {
+    setVisibleCards(new Set());
+    cardsRef.current = [];
+  }, [currentPage]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -82,8 +109,20 @@ const Partners = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-            {paginatedCompanies.map((company) => (
-              <CompanyCard key={company.id} company={company} />
+            {paginatedCompanies.map((company, index) => (
+              <div
+                key={company.id}
+                ref={(el) => (cardsRef.current[index] = el)}
+                data-index={index}
+                className={`transition-all duration-700 ${
+                  visibleCards.has(index)
+                    ? 'opacity-100 translate-y-0'
+                    : 'opacity-0 translate-y-12'
+                }`}
+                style={{ transitionDelay: `${index * 100}ms` }}
+              >
+                <CompanyCard company={company} />
+              </div>
             ))}
           </div>
 

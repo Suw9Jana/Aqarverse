@@ -15,7 +15,7 @@ export const CompanyCard = ({ company }: CompanyCardProps) => {
         background: 'var(--gradient-card)'
       }}
     >
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: 'linear-gradient(135deg, hsl(195 85% 55% / 0.05), hsl(280 85% 65% / 0.05))' }}></div>
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: 'linear-gradient(135deg, hsl(45 95% 55% / 0.08), hsl(43 100% 65% / 0.08))' }}></div>
       <div className="absolute -inset-px rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: 'var(--gradient-accent)', padding: '1px', zIndex: -1 }}></div>
       
       <CardContent className="p-8 relative">

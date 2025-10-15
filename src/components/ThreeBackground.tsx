@@ -24,11 +24,11 @@ export const ThreeBackground = () => {
         <directionalLight position={[10, 10, 5]} intensity={1} />
         <pointLight position={[-10, -10, -5]} intensity={0.5} color="#a855f7" />
         
-        <FloatingShape position={[-4, 2, 0]} color="#06b6d4" speed={1.5} />
-        <FloatingShape position={[4, -2, -2]} color="#a855f7" speed={2} />
-        <FloatingShape position={[0, 3, -3]} color="#fbbf24" speed={1.8} />
-        <FloatingShape position={[3, 1, -1]} color="#06b6d4" speed={1.3} />
-        <FloatingShape position={[-3, -3, -2]} color="#fbbf24" speed={2.2} />
+        <FloatingShape position={[-4, 2, 0]} color="#fbbf24" speed={1.5} />
+        <FloatingShape position={[4, -2, -2]} color="#f59e0b" speed={2} />
+        <FloatingShape position={[0, 3, -3]} color="#fcd34d" speed={1.8} />
+        <FloatingShape position={[3, 1, -1]} color="#d1d5db" speed={1.3} />
+        <FloatingShape position={[-3, -3, -2]} color="#9ca3af" speed={2.2} />
       </Canvas>
     </div>
   );
