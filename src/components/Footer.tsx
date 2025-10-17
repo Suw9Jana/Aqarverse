@@ -1,7 +1,7 @@
 import { Building2, Mail, Phone, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
-import logo from "@/assets/aqarverse-logo.jpeg";
+import logo from "@/assets/aqarverse_logo.jpg";
 
 export const Footer = () => {
   const { t } = useLanguage();

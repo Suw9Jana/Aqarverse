@@ -9,7 +9,7 @@ import { Property, PropertyStatus } from "@/types";
 import { mockProperties } from "@/data/mockData";
 import { Search, Eye, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import logo from "@/assets/aqarverse-logo.jpeg";
+import logo from "@/assets/aqarverse_logo.jpg";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const AdminDashboard = () => {
@@ -47,7 +47,7 @@ const AdminDashboard = () => {
       <nav className="border-b bg-card">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="AqarVerse" className="h-10 w-10 object-contain" />
+            <img src={logo} alt="AqarVerse" className="h-14 w-14 object-contain" />
             <span className="text-xl font-bold text-primary">AqarVerse Admin</span>
           </div>
           <Button variant="ghost" onClick={handleLogout}>

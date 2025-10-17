@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Upload } from "lucide-react";
-import logo from "@/assets/aqarverse-logo.jpeg";
+import logo from "@/assets/aqarverse_logo.jpg";
 
 const AddEditProperty = () => {
   const navigate = useNavigate();
