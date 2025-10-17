@@ -4,7 +4,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { User } from "lucide-react";
-import logo from "@/assets/aqarverse-logo.jpeg";
+import logo from "@/assets/aqarverse_logo.jpg";
 
 export const Navbar = () => {
   const { t } = useLanguage();
@@ -15,7 +15,7 @@ export const Navbar = () => {
     <nav className="border-b bg-card sticky top-0 z-50 shadow-sm">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link to="/partners" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <img src={logo} alt="AqarVerse" className="h-10 w-10 object-contain" />
+          <img src={logo} alt="AqarVerse" className="h-14 w-14 object-contain" />
           <span className="text-xl font-bold text-primary">AqarVerse</span>
         </Link>
         

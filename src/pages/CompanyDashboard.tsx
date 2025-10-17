@@ -8,7 +8,7 @@ import { Property } from "@/types";
 import { mockProperties } from "@/data/mockData";
 import { Edit, Trash2, Eye, Send, Plus, LogOut, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import logo from "@/assets/aqarverse-logo.jpeg";
+import logo from "@/assets/aqarverse_logo.jpg";
 
 const CompanyDashboard = () => {
   const navigate = useNavigate();
@@ -48,7 +48,7 @@ const CompanyDashboard = () => {
       <nav className="border-b bg-card">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="AqarVerse" className="h-10 w-10 object-contain" />
+            <img src={logo} alt="AqarVerse" className="h-14 w-14 object-contain" />
             <span className="text-xl font-bold text-primary">AqarVerse</span>
           </div>
           <div className="flex items-center gap-2">
@@ -117,7 +117,6 @@ const CompanyDashboard = () => {
                           variant="ghost"
                           size="icon"
                           onClick={() => navigate(`/dashboard/company/edit/${property.id}`)}
-                          disabled={property.status === 'approved'}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -134,7 +133,6 @@ const CompanyDashboard = () => {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDelete(property.id)}
-                          disabled={property.status === 'approved'}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
