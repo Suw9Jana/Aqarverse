@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,19 +8,32 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Save } from "lucide-react";
 import logo from "@/assets/aqarverse-logo.jpeg";
 
-// Mock user data - in real app, this would come from auth context
-const mockUser = {
-  role: 'customer' as 'customer' | 'company',
-  fullName: 'Jane Customer',
-  email: 'customer@example.com',
-  phone: '+966501234567',
-  location: '',
-  licenseNumber: ''
-};
-
 const EditProfile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  
+  // Get role from URL parameter
+  const role = (searchParams.get('role') as 'customer' | 'company') || 'customer';
+  
+  // Set mock user data based on role
+  const mockUser = role === 'company' 
+    ? {
+        role: 'company' as 'customer' | 'company',
+        fullName: 'John Doe',
+        email: 'company@example.com',
+        phone: '+966501234567',
+        location: 'Riyadh, Saudi Arabia',
+        licenseNumber: '12345678'
+      }
+    : {
+        role: 'customer' as 'customer' | 'company',
+        fullName: 'Jane Customer',
+        email: 'customer@example.com',
+        phone: '+966501234567',
+        location: '',
+        licenseNumber: ''
+      };
   const [formData, setFormData] = useState({
     fullName: mockUser.fullName,
     email: mockUser.email,
@@ -117,7 +130,7 @@ const EditProfile = () => {
       });
       
       // Navigate back to dashboard
-      if (mockUser.role === 'company') {
+      if (role === 'company') {
         navigate('/dashboard/company');
       } else {
         navigate('/dashboard/customer');
@@ -144,7 +157,7 @@ const EditProfile = () => {
           </div>
           <Button 
             variant="ghost" 
-            onClick={() => navigate(mockUser.role === 'company' ? '/dashboard/company' : '/dashboard/customer')}
+            onClick={() => navigate(role === 'company' ? '/dashboard/company' : '/dashboard/customer')}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back

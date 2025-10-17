@@ -52,7 +52,7 @@ const CompanyDashboard = () => {
             <span className="text-xl font-bold text-primary">AqarVerse</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => navigate('/profile/edit')}>
+            <Button variant="ghost" onClick={() => navigate('/profile/edit?role=company')}>
               <User className="h-4 w-4 mr-2" />
               Edit Profile
             </Button>

@@ -33,7 +33,7 @@ const CustomerDashboard = () => {
             <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">AqarVerse</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => navigate('/profile/edit')} className="hover:bg-primary/10">
+            <Button variant="ghost" onClick={() => navigate('/profile/edit?role=customer')} className="hover:bg-primary/10">
               <User className="h-4 w-4 mr-2" />
               Edit Profile
             </Button>
