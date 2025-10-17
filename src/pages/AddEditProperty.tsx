@@ -28,11 +28,39 @@ const AddEditProperty = () => {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
-    if (!formData.title.trim()) newErrors.title = "Title is required";
-    if (!formData.type) newErrors.type = "Property type is required";
-    if (!formData.location.trim()) newErrors.location = "Location is required";
-    if (!formData.description.trim()) newErrors.description = "Description is required";
+    // Property Title validation
+    const trimmedTitle = formData.title.trim().replace(/\s+/g, ' ');
+    if (!trimmedTitle) {
+      newErrors.title = "Please enter a valid property title.";
+    } else if (trimmedTitle.length < 3 || trimmedTitle.length > 100) {
+      newErrors.title = "Please enter a valid property title.";
+    }
     
+    // Property Type validation
+    if (!formData.type) {
+      newErrors.type = "Please select a property type.";
+    }
+    
+    // Location validation
+    const trimmedLocation = formData.location.trim();
+    const locationRegex = /^[a-zA-Z0-9\s,\-]+$/;
+    if (!trimmedLocation) {
+      newErrors.location = "Please enter a valid location.";
+    } else if (trimmedLocation.length < 2 || trimmedLocation.length > 100) {
+      newErrors.location = "Please enter a valid location.";
+    } else if (!locationRegex.test(trimmedLocation)) {
+      newErrors.location = "Please enter a valid location.";
+    }
+    
+    // Description validation
+    const trimmedDescription = formData.description.trim();
+    if (!trimmedDescription) {
+      newErrors.description = "Please provide a description.";
+    } else if (trimmedDescription.length < 20 || trimmedDescription.length > 1000) {
+      newErrors.description = "Please provide a description.";
+    }
+    
+    // File validation
     if (!isEdit && !file) {
       newErrors.file = "3D model file is required";
     } else if (file) {
