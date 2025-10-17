@@ -25,6 +25,8 @@ const translations = {
     searchPlaceholder: "Search by company name or city...",
     noResults: "No companies found matching your search.",
     loadMore: "Load More",
+    allPartners: "All Partners",
+    browseAllPartners: "Browse all our trusted partners",
     
     // Footer
     companyDescription: "Your trusted partner in real estate solutions across Saudi Arabia.",
@@ -58,6 +60,8 @@ const translations = {
     searchPlaceholder: "ابحث باسم الشركة أو المدينة...",
     noResults: "لم يتم العثور على شركات تطابق بحثك.",
     loadMore: "تحميل المزيد",
+    allPartners: "جميع الشركاء",
+    browseAllPartners: "تصفح جميع شركائنا الموثوقين",
     
     // Footer
     companyDescription: "شريكك الموثوق في حلول العقارات في جميع أنحاء المملكة العربية السعودية.",
