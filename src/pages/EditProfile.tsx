@@ -10,12 +10,12 @@ import logo from "@/assets/aqarverse-logo.jpeg";
 
 // Mock user data - in real app, this would come from auth context
 const mockUser = {
-  role: 'company' as 'customer' | 'company',
-  fullName: 'John Doe',
-  email: 'john@example.com',
+  role: 'customer' as 'customer' | 'company',
+  fullName: 'Jane Customer',
+  email: 'customer@example.com',
   phone: '+966501234567',
-  location: 'Riyadh, Saudi Arabia',
-  licenseNumber: '12345678'
+  location: '',
+  licenseNumber: ''
 };
 
 const EditProfile = () => {
@@ -27,6 +27,7 @@ const EditProfile = () => {
     phone: mockUser.phone,
     location: mockUser.location || '',
     licenseNumber: mockUser.licenseNumber || '',
+    oldPassword: '',
     password: '',
     confirmPassword: ''
   });
@@ -84,6 +85,13 @@ const EditProfile = () => {
 
     // Password validation (only if user wants to change password)
     if (formData.password) {
+      // Old password verification
+      if (!formData.oldPassword) {
+        newErrors.oldPassword = "Please enter your current password.";
+      } else if (formData.oldPassword !== 'customer123' && formData.oldPassword !== 'company123') {
+        newErrors.oldPassword = "Current password is incorrect.";
+      }
+
       const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
       if (!passwordRegex.test(formData.password)) {
         newErrors.password = "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.";
@@ -112,7 +120,7 @@ const EditProfile = () => {
       if (mockUser.role === 'company') {
         navigate('/dashboard/company');
       } else {
-        navigate('/partners');
+        navigate('/dashboard/customer');
       }
     }
   };
@@ -136,7 +144,7 @@ const EditProfile = () => {
           </div>
           <Button 
             variant="ghost" 
-            onClick={() => navigate(mockUser.role === 'company' ? '/dashboard/company' : '/partners')}
+            onClick={() => navigate(mockUser.role === 'company' ? '/dashboard/company' : '/dashboard/customer')}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
@@ -242,6 +250,24 @@ const EditProfile = () => {
                 <h3 className="font-medium mb-4">Change Password (Optional)</h3>
                 
                 <div className="space-y-4">
+                  {formData.password && (
+                    <div className="space-y-2">
+                      <Label htmlFor="oldPassword">Current Password *</Label>
+                      <Input
+                        id="oldPassword"
+                        name="oldPassword"
+                        type="password"
+                        value={formData.oldPassword}
+                        onChange={handleChange}
+                        placeholder="Enter your current password"
+                        className={errors.oldPassword ? 'border-destructive' : ''}
+                      />
+                      {errors.oldPassword && (
+                        <p className="text-sm text-destructive">{errors.oldPassword}</p>
+                      )}
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label htmlFor="password">New Password</Label>
                     <Input

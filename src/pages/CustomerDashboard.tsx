@@ -119,9 +119,6 @@ const CustomerDashboard = () => {
                     )}
                   </div>
 
-                  <Button className="w-full mt-6 group-hover:shadow-lg group-hover:shadow-primary/50 transition-all">
-                    View Details
-                  </Button>
                 </CardContent>
               </Card>
             ))}
