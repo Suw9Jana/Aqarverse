@@ -22,6 +22,7 @@ const Login = () => {
 
     // Mock validation - in real app would check against backend
     const mockUsers = [
+      { email: "customer@example.com", password: "customer123", role: "customer" },
       { email: "company@example.com", password: "password123", role: "company" },
       { email: "admin@example.com", password: "admin123", role: "admin" },
     ];
@@ -39,8 +40,10 @@ const Login = () => {
       setTimeout(() => {
         if (user.role === "company") {
           navigate("/dashboard/company");
-        } else {
+        } else if (user.role === "admin") {
           navigate("/dashboard/admin");
+        } else if (user.role === "customer") {
+          navigate("/dashboard/customer");
         }
       }, 1000);
     } else {
@@ -123,7 +126,7 @@ const Login = () => {
                     ? "Admin: admin@example.com / admin123"
                     : formData.role === "company"
                     ? "Company: company@example.com / password123"
-                    : "Don't have an account? Register first"}
+                    : "Customer: customer@example.com / customer123"}
                 </p>
               </form>
             </CardContent>
