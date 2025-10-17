@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Shield } from "lucide-react";
+import { Building2, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { UserRole } from "@/types";
 
@@ -68,7 +68,7 @@ const Register = () => {
       if (selectedRole === "company") {
         navigate("/dashboard/company");
       } else {
-        navigate("/dashboard/admin");
+        navigate("/partners");
       }
     }, 1000);
   };
@@ -102,15 +102,15 @@ const Register = () => {
 
               <Card 
                 className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 group"
-                onClick={() => setSelectedRole("admin")}
+                onClick={() => setSelectedRole("customer")}
               >
                 <CardHeader>
                   <div className="h-12 w-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4 group-hover:bg-accent/20 transition-colors">
-                    <Shield className="h-6 w-6 text-accent-foreground" />
+                    <User className="h-6 w-6 text-accent-foreground" />
                   </div>
-                  <CardTitle>Platform Administrator</CardTitle>
+                  <CardTitle>Customer</CardTitle>
                   <CardDescription>
-                    Review, approve, or reject property submissions from companies
+                    Browse and explore 3D property models
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -128,7 +128,7 @@ const Register = () => {
         <div className="max-w-md mx-auto">
           <Card>
             <CardHeader>
-              <CardTitle>Create {selectedRole === "company" ? "Company" : "Admin"} Account</CardTitle>
+              <CardTitle>Create {selectedRole === "company" ? "Company" : "Customer"} Account</CardTitle>
               <CardDescription>Fill in your details to get started</CardDescription>
             </CardHeader>
             <CardContent>
