@@ -121,6 +121,19 @@ const Login = () => {
                   Sign In
                 </Button>
 
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => toast({
+                      title: "Forgot Password",
+                      description: "Password reset functionality will be available soon.",
+                    })}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+
                 <p className="text-sm text-center text-muted-foreground">
                   {formData.role === "admin" 
                     ? "Admin: admin@example.com / admin123"

@@ -97,21 +97,26 @@ const EditProfile = () => {
     }
 
     // Password validation (only if user wants to change password)
-    if (formData.password) {
+    if (formData.oldPassword) {
       // Old password verification
-      if (!formData.oldPassword) {
-        newErrors.oldPassword = "Please enter your current password.";
-      } else if (formData.oldPassword !== 'customer123' && formData.oldPassword !== 'company123') {
+      if (formData.oldPassword !== 'customer123' && formData.oldPassword !== 'company123') {
         newErrors.oldPassword = "Current password is incorrect.";
       }
 
-      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
-      if (!passwordRegex.test(formData.password)) {
-        newErrors.password = "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.";
+      // New password is required if old password is entered
+      if (!formData.password) {
+        newErrors.password = "Please enter a new password.";
+      } else {
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
+        if (!passwordRegex.test(formData.password)) {
+          newErrors.password = "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.";
+        }
       }
 
       // Confirm Password validation
-      if (formData.password !== formData.confirmPassword) {
+      if (!formData.confirmPassword) {
+        newErrors.confirmPassword = "Please confirm your new password.";
+      } else if (formData.password !== formData.confirmPassword) {
         newErrors.confirmPassword = "Passwords do not match.";
       }
     }
@@ -263,56 +268,56 @@ const EditProfile = () => {
                 <h3 className="font-medium mb-4">Change Password (Optional)</h3>
                 
                 <div className="space-y-4">
-                  {formData.password && (
-                    <div className="space-y-2">
-                      <Label htmlFor="oldPassword">Current Password *</Label>
-                      <Input
-                        id="oldPassword"
-                        name="oldPassword"
-                        type="password"
-                        value={formData.oldPassword}
-                        onChange={handleChange}
-                        placeholder="Enter your current password"
-                        className={errors.oldPassword ? 'border-destructive' : ''}
-                      />
-                      {errors.oldPassword && (
-                        <p className="text-sm text-destructive">{errors.oldPassword}</p>
-                      )}
-                    </div>
-                  )}
-
                   <div className="space-y-2">
-                    <Label htmlFor="password">New Password</Label>
+                    <Label htmlFor="oldPassword">Current Password</Label>
                     <Input
-                      id="password"
-                      name="password"
+                      id="oldPassword"
+                      name="oldPassword"
                       type="password"
-                      value={formData.password}
+                      value={formData.oldPassword}
                       onChange={handleChange}
-                      placeholder="Leave blank to keep current password"
-                      className={errors.password ? 'border-destructive' : ''}
+                      placeholder="Enter your current password to change it"
+                      className={errors.oldPassword ? 'border-destructive' : ''}
                     />
-                    {errors.password && (
-                      <p className="text-sm text-destructive">{errors.password}</p>
+                    {errors.oldPassword && (
+                      <p className="text-sm text-destructive">{errors.oldPassword}</p>
                     )}
                   </div>
 
-                  {formData.password && (
-                    <div className="space-y-2">
-                      <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                      <Input
-                        id="confirmPassword"
-                        name="confirmPassword"
-                        type="password"
-                        value={formData.confirmPassword}
-                        onChange={handleChange}
-                        placeholder="Re-enter your new password"
-                        className={errors.confirmPassword ? 'border-destructive' : ''}
-                      />
-                      {errors.confirmPassword && (
-                        <p className="text-sm text-destructive">{errors.confirmPassword}</p>
-                      )}
-                    </div>
+                  {formData.oldPassword && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="password">New Password *</Label>
+                        <Input
+                          id="password"
+                          name="password"
+                          type="password"
+                          value={formData.password}
+                          onChange={handleChange}
+                          placeholder="Enter your new password"
+                          className={errors.password ? 'border-destructive' : ''}
+                        />
+                        {errors.password && (
+                          <p className="text-sm text-destructive">{errors.password}</p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="confirmPassword">Confirm New Password *</Label>
+                        <Input
+                          id="confirmPassword"
+                          name="confirmPassword"
+                          type="password"
+                          value={formData.confirmPassword}
+                          onChange={handleChange}
+                          placeholder="Re-enter your new password"
+                          className={errors.confirmPassword ? 'border-destructive' : ''}
+                        />
+                        {errors.confirmPassword && (
+                          <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
