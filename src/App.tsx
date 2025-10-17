@@ -11,6 +11,7 @@ import AddEditProperty from "./pages/AddEditProperty";
 import AdminDashboard from "./pages/AdminDashboard";
 import PropertyReview from "./pages/PropertyReview";
 import NotFound from "./pages/NotFound";
+import EditProfile from "./pages/EditProfile";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/dashboard/company/edit/:id" element={<AddEditProperty />} />
           <Route path="/dashboard/admin" element={<AdminDashboard />} />
           <Route path="/dashboard/admin/review/:id" element={<PropertyReview />} />
+          <Route path="/profile/edit" element={<EditProfile />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

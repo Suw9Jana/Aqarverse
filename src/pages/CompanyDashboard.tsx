@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StatusBadge } from "@/components/StatusBadge";
 import { Property } from "@/types";
 import { mockProperties } from "@/data/mockData";
-import { Edit, Trash2, Eye, Send, Plus, LogOut } from "lucide-react";
+import { Edit, Trash2, Eye, Send, Plus, LogOut, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/aqarverse-logo.jpeg";
 
@@ -51,10 +51,16 @@ const CompanyDashboard = () => {
             <img src={logo} alt="AqarVerse" className="h-10 w-10 object-contain" />
             <span className="text-xl font-bold text-primary">AqarVerse</span>
           </div>
-          <Button variant="ghost" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => navigate('/profile/edit')}>
+              <User className="h-4 w-4 mr-2" />
+              Edit Profile
+            </Button>
+            <Button variant="ghost" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
       </nav>
 
