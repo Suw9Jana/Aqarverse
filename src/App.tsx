@@ -7,6 +7,7 @@ import Partners from "./pages/Partners";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import CompanyDashboard from "./pages/CompanyDashboard";
+import CustomerDashboard from "./pages/CustomerDashboard";
 import AddEditProperty from "./pages/AddEditProperty";
 import AdminDashboard from "./pages/AdminDashboard";
 import PropertyReview from "./pages/PropertyReview";
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/dashboard/company" element={<CompanyDashboard />} />
           <Route path="/dashboard/company/add" element={<AddEditProperty />} />
           <Route path="/dashboard/company/edit/:id" element={<AddEditProperty />} />
+          <Route path="/dashboard/customer" element={<CustomerDashboard />} />
           <Route path="/dashboard/admin" element={<AdminDashboard />} />
           <Route path="/dashboard/admin/review/:id" element={<PropertyReview />} />
           <Route path="/profile/edit" element={<EditProfile />} />

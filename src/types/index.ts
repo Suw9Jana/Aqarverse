@@ -25,6 +25,8 @@ export interface Property {
   type: string;
   location: string;
   description: string;
+  size?: string;
+  price?: string;
   modelFile?: File | string;
   status: PropertyStatus;
   rejectionReason?: string;
