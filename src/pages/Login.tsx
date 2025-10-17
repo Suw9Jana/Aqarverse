@@ -8,6 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 
+// Firebase
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -17,39 +22,45 @@ const Login = () => {
     role: "customer" as "customer" | "company" | "admin",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Mock validation - in real app would check against backend
-    const mockUsers = [
-      { email: "customer@example.com", password: "customer123", role: "customer" },
-      { email: "company@example.com", password: "password123", role: "company" },
-      { email: "admin@example.com", password: "admin123", role: "admin" },
-    ];
+    try {
+      // 1) Auth: verify email/password
+      const cred = await signInWithEmailAndPassword(auth, formData.email, formData.password);
 
-    const user = mockUsers.find(
-      (u) => u.email === formData.email && u.password === formData.password && u.role === formData.role
-    );
+      // 2) DB: verify selected role matches Firestore profile
+      const uid = cred.user.uid;
+      const userRef = doc(db, "users", uid);
+      const snap = await getDoc(userRef);
 
-    if (user) {
+      if (!snap.exists()) {
+        throw new Error("User profile not found.");
+      }
+
+      const savedRole = snap.data()?.role as "customer" | "company" | "admin";
+      if (savedRole !== formData.role) {
+        throw new Error(`Selected role doesn't match your account role (${savedRole}).`);
+      }
+
       toast({
         title: "Login Successful",
         description: "Welcome back!",
       });
-      
+
       setTimeout(() => {
-        if (user.role === "company") {
+        if (savedRole === "company") {
           navigate("/dashboard/company");
-        } else if (user.role === "admin") {
+        } else if (savedRole === "admin") {
           navigate("/dashboard/admin");
-        } else if (user.role === "customer") {
+        } else if (savedRole === "customer") {
           navigate("/dashboard/customer");
         }
       }, 1000);
-    } else {
+    } catch (err: any) {
       toast({
         title: "Login Failed",
-        description: "Invalid email or password.",
+        description: err?.message || "Invalid email or password.",
         variant: "destructive",
       });
     }
@@ -124,10 +135,12 @@ const Login = () => {
                 <div className="text-center">
                   <button
                     type="button"
-                    onClick={() => toast({
-                      title: "Forgot Password",
-                      description: "Password reset functionality will be available soon.",
-                    })}
+                    onClick={() =>
+                      toast({
+                        title: "Forgot Password",
+                        description: "Password reset functionality will be available soon.",
+                      })
+                    }
                     className="text-sm text-primary hover:underline"
                   >
                     Forgot Password?
@@ -135,7 +148,7 @@ const Login = () => {
                 </div>
 
                 <p className="text-sm text-center text-muted-foreground">
-                  {formData.role === "admin" 
+                  {formData.role === "admin"
                     ? "Admin: admin@example.com / admin123"
                     : formData.role === "company"
                     ? "Company: company@example.com / password123"
