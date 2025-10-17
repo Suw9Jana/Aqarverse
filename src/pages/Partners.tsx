@@ -63,58 +63,93 @@ const Partners = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      {/* Hero Section with Buildings Background */}
-      <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
+      {/* Hero Section with Enhanced Visual Effects */}
+      <section className="relative overflow-hidden min-h-[600px] flex items-center" style={{ background: 'var(--gradient-hero)' }}>
+        {/* Background image with overlay */}
         <div 
-          className="absolute inset-0 bg-cover bg-center opacity-40"
+          className="absolute inset-0 bg-cover bg-center opacity-30"
           style={{ 
-            backgroundImage: `url(${riyadhSkyline})`
+            backgroundImage: `url(${riyadhSkyline})`,
+            filter: 'contrast(1.1) brightness(0.9)'
           }}
         />
         
-        <div className="container mx-auto px-4 py-20 md:py-28 relative z-10">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-background/10 backdrop-blur-sm border border-white/20 mb-6 animate-fade-in">
-              <Sparkles className="h-4 w-4 text-accent" />
-              <span className="text-sm font-medium text-white">{t("poweredBy")}</span>
+        {/* Gradient mesh overlay */}
+        <div className="absolute inset-0" style={{ background: 'var(--gradient-mesh)' }}></div>
+        
+        {/* Animated gradient orbs */}
+        <div className="absolute top-20 left-10 w-96 h-96 rounded-full opacity-20 blur-3xl animate-pulse" style={{ background: 'radial-gradient(circle, hsl(45 100% 70%), transparent)' }}></div>
+        <div className="absolute bottom-20 right-10 w-80 h-80 rounded-full opacity-20 blur-3xl animate-pulse" style={{ background: 'radial-gradient(circle, hsl(43 100% 75%), transparent)', animationDelay: '1s' }}></div>
+        
+        <div className="container mx-auto px-4 py-24 md:py-32 relative z-10">
+          <div className="max-w-5xl mx-auto text-center">
+            {/* Premium badge */}
+            <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 backdrop-blur-md border border-white/30 mb-8 animate-fade-in shadow-lg">
+              <Sparkles className="h-4 w-4 text-white animate-pulse" />
+              <span className="text-sm font-semibold text-white tracking-wide">{t("poweredBy")}</span>
             </div>
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight animate-fade-in bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/80">
-              {t("welcomeTitle")}
+            
+            {/* Main heading with enhanced styling */}
+            <h1 className="text-6xl md:text-8xl font-extrabold mb-8 tracking-tight animate-fade-in leading-none">
+              <span className="block bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/90 drop-shadow-2xl">
+                {t("welcomeTitle")}
+              </span>
             </h1>
-            <p className="text-xl md:text-2xl leading-relaxed max-w-3xl mx-auto font-light text-white/90 animate-fade-in">
+            
+            {/* Enhanced description */}
+            <p className="text-xl md:text-2xl leading-relaxed max-w-3xl mx-auto font-light text-white/95 animate-fade-in drop-shadow-lg mb-8">
               {t("welcomeDescription")}
             </p>
           </div>
         </div>
         
-        <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: 'var(--gradient-accent)' }}></div>
+        {/* Bottom decorative border */}
+        <div className="absolute bottom-0 left-0 right-0">
+          <div className="h-1" style={{ background: 'var(--gradient-accent)' }}></div>
+          <div className="h-px bg-white/20"></div>
+        </div>
       </section>
 
-      <main className="container mx-auto px-4 py-16 md:py-20">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+      <main className="container mx-auto px-4 py-20 md:py-24 relative">
+        {/* Decorative background elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-40 right-0 w-72 h-72 rounded-full opacity-5 blur-3xl" style={{ background: 'var(--gradient-accent)' }}></div>
+          <div className="absolute bottom-40 left-0 w-96 h-96 rounded-full opacity-5 blur-3xl" style={{ background: 'var(--gradient-accent)' }}></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto relative z-10">
+          {/* Section header with enhanced styling */}
+          <div className="text-center mb-16">
+            <div className="inline-block mb-4">
+              <div className="px-4 py-2 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-sm">
+                <span className="text-sm font-semibold text-primary tracking-wide">Featured Partners</span>
+              </div>
+            </div>
+            <h2 className="text-4xl md:text-5xl font-extrabold text-foreground mb-6 tracking-tight">
               {t("trustedPartners")}
             </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto font-light">
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-light leading-relaxed">
               {t("partnersDescription")}
             </p>
           </div>
 
-          <div className="mb-12 max-w-md mx-auto">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          {/* Enhanced search bar */}
+          <div className="mb-16 max-w-xl mx-auto">
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <Input
                 type="text"
                 placeholder={t("searchPlaceholder")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-12 rounded-xl border-border/50 focus:border-primary/30 transition-colors"
+                className="pl-12 pr-4 h-14 rounded-2xl border-2 border-border/50 focus:border-primary/50 transition-all text-base shadow-lg focus:shadow-xl"
               />
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/5 to-accent/5 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none"></div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+          {/* Partners grid with enhanced spacing */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 mb-16">
             {displayedCompanies.map((company, index) => (
               <div
                 key={company.id}
@@ -139,13 +174,17 @@ const Partners = () => {
           )}
 
           {hasMore && (
-            <div className="flex justify-center">
+            <div className="flex justify-center pt-8">
               <Button 
                 onClick={loadMore}
                 size="lg"
-                className="min-w-[200px]"
+                className="min-w-[240px] h-14 text-base font-semibold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 group relative overflow-hidden"
               >
-                {t("loadMore")}
+                <span className="relative z-10 flex items-center gap-2">
+                  {t("loadMore")}
+                  <Sparkles className="h-4 w-4 group-hover:rotate-12 transition-transform" />
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </Button>
             </div>
           )}

@@ -60,35 +60,45 @@ const AllPartners = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      <main className="container mx-auto px-4 py-12 md:py-16">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4">
-              <Building2 className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium text-primary">{mockCompanies.length} {t("partners")}</span>
+      <main className="container mx-auto px-4 py-16 md:py-20 relative">
+        {/* Decorative background elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 right-10 w-96 h-96 rounded-full opacity-5 blur-3xl" style={{ background: 'var(--gradient-accent)' }}></div>
+          <div className="absolute bottom-20 left-10 w-80 h-80 rounded-full opacity-5 blur-3xl" style={{ background: 'var(--gradient-accent)' }}></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto relative z-10">
+          {/* Enhanced header */}
+          <div className="text-center mb-14">
+            <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-primary/10 to-accent/10 border-2 border-primary/20 backdrop-blur-sm mb-6 shadow-lg">
+              <Building2 className="h-5 w-5 text-primary" />
+              <span className="text-base font-bold text-primary tracking-wide">{mockCompanies.length} {t("partners")}</span>
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
+            <h1 className="text-5xl md:text-6xl font-extrabold text-foreground mb-6 tracking-tight">
               {t("allPartners")}
             </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-light leading-relaxed">
               {t("browseAllPartners")}
             </p>
           </div>
 
-          <div className="mb-10 max-w-md mx-auto">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          {/* Enhanced search bar */}
+          <div className="mb-14 max-w-xl mx-auto">
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <Input
                 type="text"
                 placeholder={t("searchPlaceholder")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-12 rounded-xl border-border/50 focus:border-primary/30 transition-colors"
+                className="pl-12 pr-4 h-14 rounded-2xl border-2 border-border/50 focus:border-primary/50 transition-all text-base shadow-lg focus:shadow-xl"
               />
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/5 to-accent/5 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none"></div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+          {/* Partners grid with enhanced spacing */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 mb-14">
             {displayedCompanies.map((company, index) => (
               <div
                 key={company.id}
@@ -113,13 +123,14 @@ const AllPartners = () => {
           )}
 
           {hasMore && (
-            <div className="flex justify-center">
+            <div className="flex justify-center pt-8">
               <Button 
                 onClick={loadMore}
                 size="lg"
-                className="min-w-[200px]"
+                className="min-w-[240px] h-14 text-base font-semibold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 relative overflow-hidden group"
               >
-                {t("loadMore")}
+                <span className="relative z-10">{t("loadMore")}</span>
+                <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </Button>
             </div>
           )}
