@@ -1,3 +1,4 @@
+// src/pages/Login.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
@@ -9,9 +10,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 
 // Firebase
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
+
+type Role = "customer" | "company" | "admin";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -19,48 +22,84 @@ const Login = () => {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    role: "customer" as "customer" | "company" | "admin",
+    role: "customer" as Role,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
-      // 1) Auth: verify email/password
-      const cred = await signInWithEmailAndPassword(auth, formData.email, formData.password);
+      // 1) Auth: email/password sign-in
+      const cred = await signInWithEmailAndPassword(auth, formData.email.trim(), formData.password);
 
-      // 2) DB: verify selected role matches Firestore profile
-      const uid = cred.user.uid;
-      const userRef = doc(db, "users", uid);
-      const snap = await getDoc(userRef);
-
-      if (!snap.exists()) {
-        throw new Error("User profile not found.");
+      // 2) Block if email not verified
+      if (!cred.user.emailVerified) {
+        // Sign out to avoid keeping an unverified session
+        await signOut(auth);
+        throw new Error("Please verify your email before logging in. We sent you a verification link.");
       }
 
-      const savedRole = snap.data()?.role as "customer" | "company" | "admin";
-      if (savedRole !== formData.role) {
-        throw new Error(`Selected role doesn't match your account role (${savedRole}).`);
+      const uid = cred.user.uid;
+
+      // 3) Load profile strictly by UID (matches your Firestore rules)
+      let savedRole: Role | null = null;
+      let profile: any = null;
+
+      const customerSnap = await getDoc(doc(db, "Customer", uid));
+      if (customerSnap.exists()) {
+        savedRole = "customer";
+        profile = customerSnap.data();
+      } else {
+        const companySnap = await getDoc(doc(db, "company", uid));
+        if (companySnap.exists()) {
+          savedRole = "company";
+          profile = companySnap.data();
+        } else {
+          // Optional: allow self-read on /admin/{uid} in rules if you want to detect admin here
+          // const adminSnap = await getDoc(doc(db, "admin", uid));
+          // if (adminSnap.exists()) {
+          //   savedRole = "admin";
+          //   profile = adminSnap.data();
+          // }
+        }
+      }
+
+      if (!savedRole) {
+        throw new Error("Profile not found. Your account exists in Auth but no matching profile document was found.");
+      }
+
+      // 4) Optional: reconcile selected radio vs true role
+      if (formData.role !== savedRole) {
+        toast({
+          title: "Role corrected",
+          description: `You selected "${formData.role}", but your account role is "${savedRole}".`,
+        });
       }
 
       toast({
         title: "Login Successful",
-        description: "Welcome back!",
+        description: `Welcome back${profile?.name ? `, ${profile.name}` : ""}!`,
       });
 
+      // 5) Route by role
       setTimeout(() => {
-        if (savedRole === "company") {
-          navigate("/dashboard/company");
-        } else if (savedRole === "admin") {
-          navigate("/dashboard/admin");
-        } else if (savedRole === "customer") {
-          navigate("/dashboard/customer");
-        }
-      }, 1000);
+        if (savedRole === "company") navigate("/dashboard/company");
+        else if (savedRole === "admin") navigate("/dashboard/admin");
+        else navigate("/dashboard/customer");
+      }, 800);
     } catch (err: any) {
+      const message =
+        err?.code === "auth/invalid-credential" ||
+        err?.code === "auth/wrong-password" ||
+        err?.code === "auth/user-not-found"
+          ? "Invalid email or password."
+          : err?.code === "permission-denied"
+          ? "Missing or insufficient Firestore permissions for this user."
+          : err?.message || "Login failed. Please try again.";
+
       toast({
         title: "Login Failed",
-        description: err?.message || "Invalid email or password.",
+        description: message,
         variant: "destructive",
       });
     }
@@ -82,7 +121,7 @@ const Login = () => {
                   <Label>I am a</Label>
                   <RadioGroup
                     value={formData.role}
-                    onValueChange={(value) => setFormData({ ...formData, role: value as "customer" | "company" | "admin" })}
+                    onValueChange={(value) => setFormData({ ...formData, role: value as Role })}
                     className="flex flex-col space-y-2 mt-2"
                   >
                     <div className="flex items-center space-x-2">

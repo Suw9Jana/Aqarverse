@@ -10,102 +10,231 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Upload } from "lucide-react";
 import logo from "@/assets/aqarverse_logo.jpg";
 
+/* Firebase */
+import { auth, db /*, storage*/ } from "@/lib/firebase";
+import { addDoc, collection, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+// import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
+const ENABLE_STORAGE = false; // keep false for now (no Storage writes)
+
+type Status = "draft" | "pending_review" | "approved" | "rejected";
+
+type PropertyDoc = {
+  title: string;
+  type: string;
+  city: string;
+  neighborhood: string;
+  description: string;
+  price: number;
+  size: number;
+  ownerUid: string;
+  status: Status;
+  fileName?: string;
+  fileSize?: number;
+  fileType?: string;
+  filePath?: string;
+  fileUrl?: string;
+  createdAt?: any;
+  updatedAt?: any;
+};
+
 const AddEditProperty = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { toast } = useToast();
   const isEdit = Boolean(id);
+  const { toast } = useToast();
 
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState({
     title: "",
     type: "",
-    location: "",
+    city: "",
+    neighborhood: "",
+    price: "" as string | number,
+    size: "" as string | number,
     description: "",
   });
   const [file, setFile] = useState<File | null>(null);
+  const [existingFileName, setExistingFileName] = useState<string>("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState<boolean>(isEdit);
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-    
-    // Property Title validation
-    const trimmedTitle = formData.title.trim().replace(/\s+/g, ' ');
-    if (!trimmedTitle) {
-      newErrors.title = "Please enter a valid property title.";
-    } else if (trimmedTitle.length < 3 || trimmedTitle.length > 100) {
-      newErrors.title = "Please enter a valid property title.";
-    }
-    
-    // Property Type validation
-    if (!formData.type) {
-      newErrors.type = "Please select a property type.";
-    }
-    
-    // Location validation
-    const trimmedLocation = formData.location.trim();
-    const locationRegex = /^[a-zA-Z0-9\s,\-]+$/;
-    if (!trimmedLocation) {
-      newErrors.location = "Please enter a valid location.";
-    } else if (trimmedLocation.length < 2 || trimmedLocation.length > 100) {
-      newErrors.location = "Please enter a valid location.";
-    } else if (!locationRegex.test(trimmedLocation)) {
-      newErrors.location = "Please enter a valid location.";
-    }
-    
-    // Description validation
-    const trimmedDescription = formData.description.trim();
-    if (!trimmedDescription) {
-      newErrors.description = "Please provide a description.";
-    } else if (trimmedDescription.length < 20 || trimmedDescription.length > 1000) {
-      newErrors.description = "Please provide a description.";
-    }
-    
-    // File validation
-    if (!isEdit && !file) {
-      newErrors.file = "3D model file is required";
-    } else if (file) {
-      const validExtensions = ['.fbx', '.glb', '.gltf'];
-      const fileName = file.name.toLowerCase();
-      const isValid = validExtensions.some(ext => fileName.endsWith(ext));
-      const maxSize = 50 * 1024 * 1024; // 50MB
-      
-      if (!isValid) {
-        newErrors.file = "Unsupported file type. Please upload .fbx, .glb, or .gltf files.";
-      } else if (file.size > maxSize) {
-        newErrors.file = "File size exceeds 50MB limit.";
+  /* -------------------------- Load for Edit -------------------------- */
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, "Property", id));
+        if (!snap.exists()) {
+          toast({ title: "Not found", description: "Property does not exist.", variant: "destructive" });
+          navigate("/dashboard/company");
+          return;
+        }
+        const d = snap.data() as PropertyDoc;
+        setForm({
+          title: d.title || "",
+          type: d.type || "",
+          city: d.city || "",
+          neighborhood: d.neighborhood || "",
+          price: d.price ?? "",
+          size: d.size ?? "",
+          description: d.description || "",
+        });
+        setExistingFileName(d.fileName || "");
+      } catch (e: any) {
+        toast({ title: "Load failed", description: e?.message || "Try again.", variant: "destructive" });
+        navigate("/dashboard/company");
+      } finally {
+        setLoading(false);
       }
+    })();
+  }, [isEdit, id, navigate, toast]);
+
+  /* --------------------------- Validation --------------------------- */
+  const validate = () => {
+    const e: Record<string, string> = {};
+    const title = form.title.trim().replace(/\s+/g, " ");
+    if (!title || title.length < 3 || title.length > 100) e.title = "Please enter a valid property title.";
+
+    if (!form.type) e.type = "Please select a property type.";
+
+    const city = form.city.trim();
+    if (!city || city.length < 2 || city.length > 100) e.city = "Please enter a valid city.";
+    const neighborhood = form.neighborhood.trim();
+    if (!neighborhood || neighborhood.length < 2 || neighborhood.length > 100) e.neighborhood = "Please enter a valid neighborhood.";
+
+    const priceNum = Number(form.price);
+    if (!Number.isFinite(priceNum) || priceNum <= 0) e.price = "Enter a valid positive price.";
+
+    const sizeNum = Number(form.size);
+    if (!Number.isFinite(sizeNum) || sizeNum <= 0) e.size = "Enter a valid positive size.";
+
+    const desc = form.description.trim();
+    if (!desc || desc.length < 20 || desc.length > 1000) e.description = "Please provide a description (20–1000 chars).";
+
+    if (!isEdit && !file) e.file = "3D model file is required";
+    if (file) {
+      const valid = [".fbx", ".glb", ".gltf"].some(ext => file.name.toLowerCase().endsWith(ext));
+      const max = 50 * 1024 * 1024;
+      if (!valid) e.file = "Unsupported file type (.fbx, .glb, .gltf only).";
+      else if (file.size > max) e.file = "File size exceeds 50MB.";
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-      setErrors({ ...errors, file: "" });
+  /* ----------------------------- Helpers ---------------------------- */
+  const onFile = (ev: React.ChangeEvent<HTMLInputElement>) => {
+    const f = ev.target.files?.[0];
+    if (f) {
+      setFile(f);
+      setErrors(prev => ({ ...prev, file: "" }));
     }
   };
 
-  const handleSave = () => {
-    if (!validateForm()) return;
-
-    toast({
-      title: "Saved as Draft",
-      description: "Your property has been saved.",
-    });
-    navigate("/dashboard/company");
+  // If/when you enable Storage, swap this to actually upload and return url/path.
+  const fileMetaForCreate = (f: File | null) => {
+    if (!f) return {};
+    const guessedType =
+      f.type ||
+      (f.name.toLowerCase().endsWith(".fbx")
+        ? "model/fbx"
+        : f.name.toLowerCase().endsWith(".glb")
+        ? "model/gltf-binary"
+        : f.name.toLowerCase().endsWith(".gltf")
+        ? "model/gltf+json"
+        : "application/octet-stream");
+    return {
+      fileName: f.name,
+      fileSize: f.size,
+      fileType: guessedType,
+    };
   };
 
-  const handleSubmit = () => {
-    if (!validateForm()) return;
+  const save = async (asStatus: Status) => {
+    if (!validate()) return;
 
-    toast({
-      title: "Submitted for Review",
-      description: "Your property has been submitted and is pending approval.",
-    });
-    navigate("/dashboard/company");
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: "Not signed in", description: "Please log in again.", variant: "destructive" });
+      navigate("/login");
+      return;
+    }
+
+    const base = {
+      title: form.title.trim().replace(/\s+/g, " "),
+      type: form.type,
+      city: form.city.trim(),
+      neighborhood: form.neighborhood.trim(),
+      description: form.description.trim(),
+      price: Number(form.price),
+      size: Number(form.size),
+    };
+
+    try {
+      if (!isEdit) {
+        // CREATE — put *everything*, including file metadata, in the FIRST write
+        const docData: PropertyDoc = {
+          ...base,
+          ...fileMetaForCreate(file),
+          ownerUid: user.uid,
+          status: asStatus, // "draft" or "pending_review"
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+        await addDoc(collection(db, "Property"), docData);
+
+        toast({
+          title: asStatus === "draft" ? "Saved as Draft" : "Submitted for Review",
+          description:
+            asStatus === "draft"
+              ? "Your property has been saved."
+              : "Your property has been submitted and is pending approval.",
+        });
+      } else if (id) {
+        // EDIT — owner can update fields (status stays as-is for owner)
+        await updateDoc(doc(db, "Property", id), {
+          ...base,
+          // If user picked a new file, just overwrite the metadata locally (no Storage yet)
+          ...(file ? fileMetaForCreate(file) : {}),
+          updatedAt: serverTimestamp(),
+        });
+        toast({ title: "Property updated", description: "Your changes have been saved." });
+      }
+
+      navigate("/dashboard/company");
+    } catch (err: any) {
+      // If you still see this toast but the doc exists, it means the SECOND write failed —
+      // in this version we only do one write on create, so this should be gone.
+      toast({
+        title: "Failed",
+        description:
+          err?.code === "permission-denied"
+            ? "Missing or insufficient permissions."
+            : err?.message || "Could not save property.",
+        variant: "destructive",
+      });
+    }
   };
+
+  /* ------------------------------ UI ------------------------------ */
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <nav className="border-b bg-card">
+          <div className="container mx-auto px-4 h-16 flex items-center">
+            <div className="flex items-center gap-3">
+              <img src={logo} alt="AqarVerse" className="h-10 w-10 object-contain" />
+              <span className="text-xl font-bold text-primary">AqarVerse</span>
+            </div>
+          </div>
+        </nav>
+        <div className="container mx-auto px-4 py-8 max-w-3xl">
+          <p className="text-muted-foreground">Loading…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -119,11 +248,7 @@ const AddEditProperty = () => {
       </nav>
 
       <div className="container mx-auto px-4 py-8 max-w-3xl">
-        <Button
-          variant="ghost"
-          onClick={() => navigate("/dashboard/company")}
-          className="mb-6"
-        >
+        <Button variant="ghost" onClick={() => navigate("/dashboard/company")} className="mb-6">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Properties
         </Button>
@@ -137,8 +262,8 @@ const AddEditProperty = () => {
               <Label htmlFor="title">Property Title</Label>
               <Input
                 id="title"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="e.g., Luxury Marina Apartment"
                 className={errors.title ? "border-destructive" : ""}
               />
@@ -147,10 +272,7 @@ const AddEditProperty = () => {
 
             <div>
               <Label htmlFor="type">Property Type</Label>
-              <Select
-                value={formData.type}
-                onValueChange={(value) => setFormData({ ...formData, type: value })}
-              >
+              <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: value })}>
                 <SelectTrigger className={errors.type ? "border-destructive" : ""}>
                   <SelectValue placeholder="Select property type" />
                 </SelectTrigger>
@@ -167,76 +289,99 @@ const AddEditProperty = () => {
             </div>
 
             <div>
-              <Label htmlFor="location">Location</Label>
+              <Label htmlFor="city">City</Label>
               <Input
-                id="location"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                placeholder="e.g., Dubai Marina"
-                className={errors.location ? "border-destructive" : ""}
+                id="city"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+                placeholder="e.g., Dubai"
+                className={errors.city ? "border-destructive" : ""}
               />
-              {errors.location && <p className="text-sm text-destructive mt-1">{errors.location}</p>}
+              {errors.city && <p className="text-sm text-destructive mt-1">{errors.city}</p>}
+            </div>
+
+            <div>
+              <Label htmlFor="neighborhood">Neighborhood</Label>
+              <Input
+                id="neighborhood"
+                value={form.neighborhood}
+                onChange={(e) => setForm({ ...form, neighborhood: e.target.value })}
+                placeholder="e.g., Dubai Marina"
+                className={errors.neighborhood ? "border-destructive" : ""}
+              />
+              {errors.neighborhood && <p className="text-sm text-destructive mt-1">{errors.neighborhood}</p>}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="price">Price</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  className={errors.price ? "border-destructive" : ""}
+                />
+                {errors.price && <p className="text-sm text-destructive mt-1">{errors.price}</p>}
+              </div>
+              <div>
+                <Label htmlFor="size">Size (m²)</Label>
+                <Input
+                  id="size"
+                  type="number"
+                  value={form.size}
+                  onChange={(e) => setForm({ ...form, size: e.target.value })}
+                  className={errors.size ? "border-destructive" : ""}
+                />
+                {errors.size && <p className="text-sm text-destructive mt-1">{errors.size}</p>}
+              </div>
             </div>
 
             <div>
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
                 placeholder="Describe the property..."
                 rows={4}
                 className={errors.description ? "border-destructive" : ""}
               />
-              {errors.description && (
-                <p className="text-sm text-destructive mt-1">{errors.description}</p>
-              )}
+              {errors.description && <p className="text-sm text-destructive mt-1">{errors.description}</p>}
             </div>
 
             <div>
               <Label htmlFor="model">3D Model (.fbx, .glb, .gltf)</Label>
               <div className="mt-2">
                 <label htmlFor="model" className="cursor-pointer">
-                  <div className={`border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors ${errors.file ? "border-destructive" : "border-border"}`}>
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors ${
+                      errors.file ? "border-destructive" : "border-border"
+                    }`}
+                  >
                     <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">
-                      {file ? file.name : "Click to upload or drag and drop"}
+                      {file ? file.name : existingFileName || "Click to upload or drag and drop"}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Maximum file size: 50MB
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Maximum file size: 50MB</p>
+                    {!ENABLE_STORAGE && (
+                      <p className="text-xs text-muted-foreground mt-1">Storage disabled — only file metadata will be saved.</p>
+                    )}
                   </div>
                 </label>
-                <input
-                  id="model"
-                  type="file"
-                  accept=".fbx,.glb,.gltf"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
+                <input id="model" type="file" accept=".fbx,.glb,.gltf" onChange={onFile} className="hidden" />
               </div>
               {errors.file && <p className="text-sm text-destructive mt-1">{errors.file}</p>}
             </div>
 
             <div className="flex gap-3 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => navigate("/dashboard/company")}
-                className="flex-1"
-              >
+              <Button variant="outline" onClick={() => navigate("/dashboard/company")} className="flex-1">
                 Cancel
               </Button>
-              <Button
-                variant="secondary"
-                onClick={handleSave}
-                className="flex-1"
-              >
+              <Button variant="secondary" onClick={() => save("draft")} className="flex-1">
                 Save as Draft
               </Button>
-              <Button
-                onClick={handleSubmit}
-                className="flex-1"
-              >
+              <Button onClick={() => save("pending_review")} className="flex-1">
                 Submit for Review
               </Button>
             </div>
