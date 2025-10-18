@@ -99,8 +99,10 @@ const AddEditProperty = () => {
 
     const city = form.city.trim();
     if (!city || city.length < 2 || city.length > 100) e.city = "Please enter a valid city.";
+
     const neighborhood = form.neighborhood.trim();
-    if (!neighborhood || neighborhood.length < 2 || neighborhood.length > 100) e.neighborhood = "Please enter a valid neighborhood.";
+    if (!neighborhood || neighborhood.length < 2 || neighborhood.length > 100)
+      e.neighborhood = "Please enter a valid neighborhood.";
 
     const priceNum = Number(form.price);
     if (!Number.isFinite(priceNum) || priceNum <= 0) e.price = "Enter a valid positive price.";
@@ -113,7 +115,7 @@ const AddEditProperty = () => {
 
     if (!isEdit && !file) e.file = "3D model file is required";
     if (file) {
-      const valid = [".fbx", ".glb", ".gltf"].some(ext => file.name.toLowerCase().endsWith(ext));
+      const valid = [".fbx", ".glb", ".gltf"].some((ext) => file.name.toLowerCase().endsWith(ext));
       const max = 50 * 1024 * 1024;
       if (!valid) e.file = "Unsupported file type (.fbx, .glb, .gltf only).";
       else if (file.size > max) e.file = "File size exceeds 50MB.";
@@ -128,26 +130,28 @@ const AddEditProperty = () => {
     const f = ev.target.files?.[0];
     if (f) {
       setFile(f);
-      setErrors(prev => ({ ...prev, file: "" }));
+      setErrors((prev) => ({ ...prev, file: "" }));
     }
   };
 
-  // If/when you enable Storage, swap this to actually upload and return url/path.
+  // (Storage disabled) — return clean, defined metadata only
   const fileMetaForCreate = (f: File | null) => {
     if (!f) return {};
-    const guessedType =
-      f.type ||
-      (f.name.toLowerCase().endsWith(".fbx")
+    const lower = f.name.toLowerCase();
+    const fileType =
+      (f.type && f.type.trim()) ||
+      (lower.endsWith(".fbx")
         ? "model/fbx"
-        : f.name.toLowerCase().endsWith(".glb")
+        : lower.endsWith(".glb")
         ? "model/gltf-binary"
-        : f.name.toLowerCase().endsWith(".gltf")
+        : lower.endsWith(".gltf")
         ? "model/gltf+json"
         : "application/octet-stream");
+
     return {
       fileName: f.name,
       fileSize: f.size,
-      fileType: guessedType,
+      fileType,
     };
   };
 
@@ -161,6 +165,7 @@ const AddEditProperty = () => {
       return;
     }
 
+    // base fields (strings trimmed, numbers parsed)
     const base = {
       title: form.title.trim().replace(/\s+/g, " "),
       type: form.type,
@@ -173,15 +178,16 @@ const AddEditProperty = () => {
 
     try {
       if (!isEdit) {
-        // CREATE — put *everything*, including file metadata, in the FIRST write
+        // CREATE — include file metadata in the first write
         const docData: PropertyDoc = {
           ...base,
           ...fileMetaForCreate(file),
           ownerUid: user.uid,
-          status: asStatus, // "draft" or "pending_review"
+          status: asStatus, // "draft" | "pending_review"
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
+
         await addDoc(collection(db, "Property"), docData);
 
         toast({
@@ -191,26 +197,51 @@ const AddEditProperty = () => {
               ? "Your property has been saved."
               : "Your property has been submitted and is pending approval.",
         });
-      } else if (id) {
-        // EDIT — owner can update fields (status stays as-is for owner)
-        await updateDoc(doc(db, "Property", id), {
-          ...base,
-          // If user picked a new file, just overwrite the metadata locally (no Storage yet)
-          ...(file ? fileMetaForCreate(file) : {}),
-          updatedAt: serverTimestamp(),
-        });
-        toast({ title: "Property updated", description: "Your changes have been saved." });
+
+        navigate("/dashboard/company");
+        return;
       }
 
+      // -------------------- EDIT --------------------
+      if (!id) return;
+
+      // Clean update payload — **never** send undefined/NaN
+      const priceNum = Number(form.price);
+      const sizeNum = Number(form.size);
+      const payload: Record<string, any> = {
+        title: base.title,
+        type: base.type,
+        city: base.city,
+        neighborhood: base.neighborhood,
+        description: base.description,
+        ...(Number.isFinite(priceNum) ? { price: priceNum } : {}),
+        ...(Number.isFinite(sizeNum) ? { size: sizeNum } : {}),
+        updatedAt: serverTimestamp(),
+      };
+
+      if (file) {
+        const meta = fileMetaForCreate(file);
+        Object.keys(meta).forEach((k) => {
+          // remove any undefined keys just in case
+          // @ts-expect-error runtime clean
+          if (meta[k] === undefined) delete meta[k];
+        });
+        Object.assign(payload, meta);
+      }
+
+      await updateDoc(doc(db, "Property", id), payload);
+
+      toast({ title: "Property updated", description: "Your changes have been saved." });
       navigate("/dashboard/company");
     } catch (err: any) {
-      // If you still see this toast but the doc exists, it means the SECOND write failed —
-      // in this version we only do one write on create, so this should be gone.
+      console.error("Add/Edit property failed:", err);
       toast({
         title: "Failed",
         description:
-          err?.code === "permission-denied"
-            ? "Missing or insufficient permissions."
+          err?.code === "invalid-argument"
+            ? "Some fields are invalid (e.g., empty or not a number). Please fix and try again."
+            : err?.code === "permission-denied"
+            ? "You don't have permission to change restricted fields."
             : err?.message || "Could not save property.",
         variant: "destructive",
       });

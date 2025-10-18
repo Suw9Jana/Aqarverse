@@ -1,23 +1,45 @@
-import { PropertyStatus } from "@/types";
-import { Badge } from "@/components/ui/badge";
+// src/components/StatusBadge.tsx
+import { cn } from "@/lib/utils";
 
-interface StatusBadgeProps {
-  status: PropertyStatus;
-}
+type KnownStatus =
+  | "draft"
+  | "pending_review"
+  | "approved"
+  | "rejected"
+  | "submitted" // legacy value mapped to "pending"
+  | "unknown";
 
-export const StatusBadge = ({ status }: StatusBadgeProps) => {
-  const variants: Record<PropertyStatus, { label: string; className: string }> = {
-    draft: { label: 'Draft', className: 'bg-muted text-muted-foreground hover:bg-muted' },
-    submitted: { label: 'Submitted', className: 'bg-blue-100 text-blue-700 hover:bg-blue-100' },
-    approved: { label: 'Approved', className: 'bg-green-100 text-green-700 hover:bg-green-100' },
-    rejected: { label: 'Rejected', className: 'bg-red-100 text-red-700 hover:bg-red-100' },
-  };
+const variants: Record<KnownStatus, { label: string; className: string }> = {
+  draft:          { label: "Draft",   className: "bg-muted text-foreground" },
+  pending_review: { label: "Pending", className: "bg-amber-100 text-amber-800" },
+  approved:       { label: "Approved",className: "bg-emerald-100 text-emerald-800" },
+  rejected:       { label: "Rejected",className: "bg-red-100 text-red-800" },
+  submitted:      { label: "Pending", className: "bg-amber-100 text-amber-800" },
+  unknown:        { label: "Unknown", className: "bg-gray-200 text-gray-700" },
+};
 
-  const { label, className } = variants[status];
+function StatusBadge({
+  status,
+  className,
+}: {
+  status?: string;
+  className?: string;
+}) {
+  const key = (status as KnownStatus) ?? "unknown";
+  const v = variants[key] ?? variants.unknown;
 
   return (
-    <Badge className={className}>
-      {label}
-    </Badge>
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+        v.className,
+        className
+      )}
+    >
+      {v.label}
+    </span>
   );
-};
+}
+
+export { StatusBadge };   // named export
+export default StatusBadge; // default export (so both styles work)

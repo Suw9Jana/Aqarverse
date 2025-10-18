@@ -117,33 +117,7 @@ const Login = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label>I am a</Label>
-                  <RadioGroup
-                    value={formData.role}
-                    onValueChange={(value) => setFormData({ ...formData, role: value as Role })}
-                    className="flex flex-col space-y-2 mt-2"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="customer" id="customer" />
-                      <Label htmlFor="customer" className="font-normal cursor-pointer">
-                        Customer
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="company" id="company" />
-                      <Label htmlFor="company" className="font-normal cursor-pointer">
-                        Real Estate Company
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="admin" id="admin" />
-                      <Label htmlFor="admin" className="font-normal cursor-pointer">
-                        Platform Administrator
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
+                
 
                 <div>
                   <Label htmlFor="email">Email</Label>
