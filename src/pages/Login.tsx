@@ -1,4 +1,3 @@
-// src/pages/Login.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
@@ -6,87 +5,59 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
+import { Eye, EyeOff } from "lucide-react";
 
 // Firebase
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
-type Role = "customer" | "company" | "admin";
+async function routeByRole(uid: string, navigate: ReturnType<typeof useNavigate>) {
+  try {
+    const adminSnap = await getDoc(doc(db, "admin", uid));
+    if (adminSnap.exists() && adminSnap.data()?.role === "admin") {
+      navigate("/dashboard/admin", { replace: true });
+      return;
+    }
+  } catch {}
+  const companySnap = await getDoc(doc(db, "company", uid));
+  if (companySnap.exists()) {
+    navigate("/dashboard/company", { replace: true });
+    return;
+  }
+  const customerSnap = await getDoc(doc(db, "Customer", uid));
+  if (customerSnap.exists()) {
+    navigate("/dashboard/customer", { replace: true });
+    return;
+  }
+  navigate("/partners", { replace: true });
+}
 
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    role: "customer" as Role,
-  });
+
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [showPwd, setShowPwd] = useState(false);
+  const [working, setWorking] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (working) return;
+    setWorking(true);
 
     try {
-      // 1) Auth: email/password sign-in
       const cred = await signInWithEmailAndPassword(auth, formData.email.trim(), formData.password);
 
-      // 2) Block if email not verified
       if (!cred.user.emailVerified) {
-        // Sign out to avoid keeping an unverified session
         await signOut(auth);
         throw new Error("Please verify your email before logging in. We sent you a verification link.");
       }
 
-      const uid = cred.user.uid;
+      await routeByRole(cred.user.uid, navigate);
 
-      // 3) Load profile strictly by UID (matches your Firestore rules)
-      let savedRole: Role | null = null;
-      let profile: any = null;
-
-      const customerSnap = await getDoc(doc(db, "Customer", uid));
-      if (customerSnap.exists()) {
-        savedRole = "customer";
-        profile = customerSnap.data();
-      } else {
-        const companySnap = await getDoc(doc(db, "company", uid));
-        if (companySnap.exists()) {
-          savedRole = "company";
-          profile = companySnap.data();
-        } else {
-          // Optional: allow self-read on /admin/{uid} in rules if you want to detect admin here
-          // const adminSnap = await getDoc(doc(db, "admin", uid));
-          // if (adminSnap.exists()) {
-          //   savedRole = "admin";
-          //   profile = adminSnap.data();
-          // }
-        }
-      }
-
-      if (!savedRole) {
-        throw new Error("Profile not found. Your account exists in Auth but no matching profile document was found.");
-      }
-
-      // 4) Optional: reconcile selected radio vs true role
-      if (formData.role !== savedRole) {
-        toast({
-          title: "Role corrected",
-          description: `You selected "${formData.role}", but your account role is "${savedRole}".`,
-        });
-      }
-
-      toast({
-        title: "Login Successful",
-        description: `Welcome back${profile?.name ? `, ${profile.name}` : ""}!`,
-      });
-
-      // 5) Route by role
-      setTimeout(() => {
-        if (savedRole === "company") navigate("/dashboard/company");
-        else if (savedRole === "admin") navigate("/dashboard/admin");
-        else navigate("/dashboard/customer");
-      }, 800);
+      toast({ title: "Login Successful", description: "Welcome back!" });
     } catch (err: any) {
       const message =
         err?.code === "auth/invalid-credential" ||
@@ -96,12 +67,9 @@ const Login = () => {
           : err?.code === "permission-denied"
           ? "Missing or insufficient Firestore permissions for this user."
           : err?.message || "Login failed. Please try again.";
-
-      toast({
-        title: "Login Failed",
-        description: message,
-        variant: "destructive",
-      });
+      toast({ title: "Login Failed", description: message, variant: "destructive" });
+    } finally {
+      setWorking(false);
     }
   };
 
@@ -117,8 +85,6 @@ const Login = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
-                
-
                 <div>
                   <Label htmlFor="email">Email</Label>
                   <Input
@@ -127,46 +93,46 @@ const Login = () => {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
+                    autoComplete="email"
                   />
                 </div>
 
                 <div>
                   <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPwd ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      required
+                      autoComplete="current-password"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPwd((s) => !s)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                      aria-label={showPwd ? "Hide password" : "Show password"}
+                    >
+                      {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
 
-                <Button type="submit" className="w-full">
-                  Sign In
+                <Button type="submit" className="w-full" disabled={working}>
+                  {working ? "Signing in…" : "Sign In"}
                 </Button>
 
                 <div className="text-center">
                   <button
                     type="button"
-                    onClick={() =>
-                      toast({
-                        title: "Forgot Password",
-                        description: "Password reset functionality will be available soon.",
-                      })
-                    }
+                    onClick={() => navigate("/forgot-password")}
                     className="text-sm text-primary hover:underline"
                   >
                     Forgot Password?
                   </button>
                 </div>
-
-                <p className="text-sm text-center text-muted-foreground">
-                  {formData.role === "admin"
-                    ? "Admin: admin@example.com / admin123"
-                    : formData.role === "company"
-                    ? "Company: company@example.com / password123"
-                    : "Customer: customer@example.com / customer123"}
-                </p>
               </form>
             </CardContent>
           </Card>
