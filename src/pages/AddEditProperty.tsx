@@ -422,5 +422,4 @@ const AddEditProperty = () => {
     </div>
   );
 };
-
 export default AddEditProperty;
