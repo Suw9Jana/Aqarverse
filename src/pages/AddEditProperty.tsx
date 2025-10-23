@@ -58,6 +58,9 @@ const AddEditProperty = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<boolean>(isEdit);
 
+  // NEW: track doc's current status for resubmission logic
+  const [docStatus, setDocStatus] = useState<Status | null>(null);
+
   /* -------------------------- Load for Edit -------------------------- */
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -80,6 +83,7 @@ const AddEditProperty = () => {
           description: d.description || "",
         });
         setExistingFileName(d.fileName || "");
+        setDocStatus(d.status ?? null);         // ← NEW
       } catch (e: any) {
         toast({ title: "Load failed", description: e?.message || "Try again.", variant: "destructive" });
         navigate("/dashboard/company");
@@ -205,7 +209,9 @@ const AddEditProperty = () => {
       // -------------------- EDIT --------------------
       if (!id) return;
 
-      // Clean update payload — **never** send undefined/NaN
+      const ref = doc(db, "Property", id);
+
+      // Build update payload
       const priceNum = Number(form.price);
       const sizeNum = Number(form.size);
       const payload: Record<string, any> = {
@@ -219,17 +225,24 @@ const AddEditProperty = () => {
         updatedAt: serverTimestamp(),
       };
 
+      // NEW: if user clicked "Submit for Review" on a rejected/draft doc, send status change
+      if (asStatus === "pending_review" && (docStatus === "rejected" || docStatus === "draft")) {
+        payload.status = "pending_review";
+      }
+
       if (file) {
         const meta = fileMetaForCreate(file);
         Object.keys(meta).forEach((k) => {
-          // remove any undefined keys just in case
           // @ts-expect-error runtime clean
           if (meta[k] === undefined) delete meta[k];
         });
         Object.assign(payload, meta);
       }
 
-      await updateDoc(doc(db, "Property", id), payload);
+      await updateDoc(ref, payload);
+
+      // Reflect locally if we changed status
+      if (payload.status === "pending_review") setDocStatus("pending_review");
 
       toast({ title: "Property updated", description: "Your changes have been saved." });
       navigate("/dashboard/company");
@@ -241,7 +254,7 @@ const AddEditProperty = () => {
           err?.code === "invalid-argument"
             ? "Some fields are invalid (e.g., empty or not a number). Please fix and try again."
             : err?.code === "permission-denied"
-            ? "You don't have permission to change restricted fields."
+            ? "You don't have permission to change this property."
             : err?.message || "Could not save property.",
         variant: "destructive",
       });
@@ -337,7 +350,7 @@ const AddEditProperty = () => {
                 id="neighborhood"
                 value={form.neighborhood}
                 onChange={(e) => setForm({ ...form, neighborhood: e.target.value })}
-                placeholder="e.g., Dubai Marina"
+                placeholder="e.g., Marina"
                 className={errors.neighborhood ? "border-destructive" : ""}
               />
               {errors.neighborhood && <p className="text-sm text-destructive mt-1">{errors.neighborhood}</p>}
