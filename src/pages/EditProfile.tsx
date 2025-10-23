@@ -8,6 +8,18 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Save, Eye, EyeOff } from "lucide-react";
 import logo from "@/assets/aqarverse_logo.jpg";
 
+/* ⬇️ New import for the popup */
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+
 /* Firebase */
 import { auth, db } from "@/lib/firebase";
 import {
@@ -41,11 +53,13 @@ const EditProfile = () => {
     password: "",
     confirmPassword: "",
   });
+
   const [showOld, setShowOld] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [pwOpen, setPwOpen] = useState(false); // ⬅️ controls the popup
 
   useEffect(() => {
     (async () => {
@@ -121,6 +135,7 @@ const EditProfile = () => {
         newErrors.licenseNumber = "Please enter your license number.";
       }
     }
+    // same password logic — fields now live inside the modal but still bound to formData
     const wantsPasswordChange = Boolean(formData.oldPassword || formData.password || formData.confirmPassword);
     if (wantsPasswordChange) {
       if (!formData.oldPassword) newErrors.oldPassword = "Current password is required to change your password.";
@@ -186,6 +201,7 @@ const EditProfile = () => {
       }
 
       toast({ title: "Profile Updated", description: "Your profile has been successfully updated." });
+      setPwOpen(false); // close the popup if it was open
       navigate(role === "company" ? "/dashboard/company" : "/dashboard/customer");
     } catch (err: any) {
       const message =
@@ -251,7 +267,8 @@ const EditProfile = () => {
             <CardDescription>Update your personal information</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Give the form an id so modal buttons can submit it */}
+            <form id="editProfileForm" onSubmit={handleSubmit} className="space-y-6">
               {/* Name */}
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name *</Label>
@@ -267,7 +284,7 @@ const EditProfile = () => {
                 {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
               </div>
 
-              {/* Email */}
+              {/* Email (locked) */}
               <div className="space-y-2">
                 <Label htmlFor="email">Email *</Label>
                 <Input
@@ -278,6 +295,11 @@ const EditProfile = () => {
                   onChange={handleChange}
                   placeholder="your.email@example.com"
                   className={errors.email ? "border-destructive" : ""}
+                  disabled
+                  readOnly
+                  onFocus={(e) => e.currentTarget.blur()}
+                  tabIndex={-1}
+                  aria-disabled="true"
                 />
                 {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
               </div>
@@ -330,90 +352,108 @@ const EditProfile = () => {
                 </>
               )}
 
-              {/* Password section */}
-              <div className="pt-4 border-t">
-                <h3 className="font-medium mb-4">Change Password / Email (Optional)</h3>
+              {/* Change Password trigger (popup) */}
+              <div className="pt-2">
+                <Dialog open={pwOpen} onOpenChange={setPwOpen}>
+                  <DialogTrigger asChild>
+                    <Button type="button" variant="secondary">Change Password</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Change Password</DialogTitle>
+                      <DialogDescription>Update your password securely.</DialogDescription>
+                    </DialogHeader>
 
-                <div className="space-y-4">
-                  {/* Current */}
-                  <div className="space-y-2">
-                    <Label htmlFor="oldPassword">Current Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="oldPassword"
-                        name="oldPassword"
-                        type={showOld ? "text" : "password"}
-                        value={formData.oldPassword}
-                        onChange={handleChange}
-                        placeholder="Required if changing email or password"
-                        className={`${errors.oldPassword ? "border-destructive" : ""} pr-10`}
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                        onClick={() => setShowOld((s) => !s)}
-                        aria-label={showOld ? "Hide password" : "Show password"}
-                      >
-                        {showOld ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    {errors.oldPassword && <p className="text-sm text-destructive">{errors.oldPassword}</p>}
-                  </div>
+                    <div className="space-y-4 py-2">
+                      {/* Current */}
+                      <div className="space-y-2">
+                        <Label htmlFor="oldPassword">Current Password</Label>
+                        <div className="relative">
+                          <Input
+                            id="oldPassword"
+                            name="oldPassword"
+                            type={showOld ? "text" : "password"}
+                            value={formData.oldPassword}
+                            onChange={handleChange}
+                            placeholder="Required if changing password"
+                            className={`${errors.oldPassword ? "border-destructive" : ""} pr-10`}
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                            onClick={() => setShowOld((s) => !s)}
+                            aria-label={showOld ? "Hide password" : "Show password"}
+                          >
+                            {showOld ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        {errors.oldPassword && <p className="text-sm text-destructive">{errors.oldPassword}</p>}
+                      </div>
 
-                  {/* New */}
-                  <div className="space-y-2">
-                    <Label htmlFor="password">New Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        name="password"
-                        type={showNew ? "text" : "password"}
-                        value={formData.password}
-                        onChange={handleChange}
-                        placeholder="Leave blank to keep current password"
-                        className={`${errors.password ? "border-destructive" : ""} pr-10`}
-                        autoComplete="new-password"
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                        onClick={() => setShowNew((s) => !s)}
-                        aria-label={showNew ? "Hide password" : "Show password"}
-                      >
-                        {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
-                  </div>
+                      {/* New */}
+                      <div className="space-y-2">
+                        <Label htmlFor="password">New Password</Label>
+                        <div className="relative">
+                          <Input
+                            id="password"
+                            name="password"
+                            type={showNew ? "text" : "password"}
+                            value={formData.password}
+                            onChange={handleChange}
+                            placeholder="Leave blank to keep current password"
+                            className={`${errors.password ? "border-destructive" : ""} pr-10`}
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                            onClick={() => setShowNew((s) => !s)}
+                            aria-label={showNew ? "Hide password" : "Show password"}
+                          >
+                            {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                      </div>
 
-                  {/* Confirm */}
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="confirmPassword"
-                        name="confirmPassword"
-                        type={showConfirm ? "text" : "password"}
-                        value={formData.confirmPassword}
-                        onChange={handleChange}
-                        placeholder="Re-enter your new password"
-                        className={`${errors.confirmPassword ? "border-destructive" : ""} pr-10`}
-                        autoComplete="new-password"
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                        onClick={() => setShowConfirm((s) => !s)}
-                        aria-label={showConfirm ? "Hide password" : "Show password"}
-                      >
-                        {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                      {/* Confirm */}
+                      <div className="space-y-2">
+                        <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                        <div className="relative">
+                          <Input
+                            id="confirmPassword"
+                            name="confirmPassword"
+                            type={showConfirm ? "text" : "password"}
+                            value={formData.confirmPassword}
+                            onChange={handleChange}
+                            placeholder="Re-enter your new password"
+                            className={`${errors.confirmPassword ? "border-destructive" : ""} pr-10`}
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                            onClick={() => setShowConfirm((s) => !s)}
+                            aria-label={showConfirm ? "Hide password" : "Show password"}
+                          >
+                            {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        {errors.confirmPassword && (
+                          <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+                        )}
+                      </div>
                     </div>
-                    {errors.confirmPassword && (
-                      <p className="text-sm text-destructive">{errors.confirmPassword}</p>
-                    )}
-                  </div>
-                </div>
+
+                    <DialogFooter className="gap-2">
+                      <DialogClose asChild>
+                        <Button type="button" variant="outline">Cancel</Button>
+                      </DialogClose>
+                      {/* This submits the main form with the password fields included */}
+                      <Button type="submit" form="editProfileForm">Save Changes</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <Button type="submit" className="w-full">

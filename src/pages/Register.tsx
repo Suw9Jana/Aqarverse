@@ -1,4 +1,4 @@
-// src/pages/Register.tsx
+// src/pages/Register.tsx 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
@@ -22,6 +22,7 @@ const Register = () => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    confirmEmail: "", // ✅ added
     phone: "",
     location: "",
     licenseNumber: "",
@@ -48,6 +49,13 @@ const Register = () => {
       newErrors.email = "Please enter a valid email address.";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Please enter a valid email address.";
+    }
+
+    // ✅ Confirm Email validation (added)
+    if (!formData.confirmEmail.trim()) {
+      newErrors.confirmEmail = "Please re-enter your email.";
+    } else if (formData.email.trim().toLowerCase() !== formData.confirmEmail.trim().toLowerCase()) {
+      newErrors.confirmEmail = "Emails do not match.";
     }
 
     // Phone validation
@@ -228,7 +236,7 @@ const Register = () => {
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="name">Full Name *</Label>
                   <Input
                     id="name"
                     value={formData.name}
@@ -240,7 +248,7 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email *</Label>
                   <Input
                     id="email"
                     type="email"
@@ -252,8 +260,24 @@ const Register = () => {
                   {errors.email && <p className="text-sm text-destructive mt-1">{errors.email}</p>}
                 </div>
 
+                {/* ✅ Confirm Email field (added) */}
                 <div>
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label htmlFor="confirmEmail">Confirm Email *</Label>
+                  <Input
+                    id="confirmEmail"
+                    type="email"
+                    value={formData.confirmEmail}
+                    onChange={(e) => setFormData({ ...formData, confirmEmail: e.target.value })}
+                    className={errors.confirmEmail ? "border-destructive" : ""}
+                    placeholder="Re-enter your email"
+                  />
+                  {errors.confirmEmail && (
+                    <p className="text-sm text-destructive mt-1">{errors.confirmEmail}</p>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="phone">Phone Number *</Label>
                   <Input
                     id="phone"
                     type="tel"
@@ -268,7 +292,7 @@ const Register = () => {
                 {selectedRole === "company" && (
                   <>
                     <div>
-                      <Label htmlFor="location">Location</Label>
+                      <Label htmlFor="location">Location *</Label>
                       <Input
                         id="location"
                         value={formData.location}
@@ -280,7 +304,7 @@ const Register = () => {
                     </div>
 
                     <div>
-                      <Label htmlFor="license">License Number</Label>
+                      <Label htmlFor="license">License Number *</Label>
                       <Input
                         id="license"
                         value={formData.licenseNumber}
@@ -294,7 +318,7 @@ const Register = () => {
                 )}
 
                 <div>
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">Password *</Label>
                   <Input
                     id="password"
                     type="password"
@@ -307,7 +331,7 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Label htmlFor="confirmPassword">Confirm Password *</Label>
                   <Input
                     id="confirmPassword"
                     type="password"

@@ -290,7 +290,7 @@ const AddEditProperty = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <div>
-              <Label htmlFor="title">Property Title</Label>
+              <Label htmlFor="title">Property Title *</Label>
               <Input
                 id="title"
                 value={form.title}
@@ -302,7 +302,7 @@ const AddEditProperty = () => {
             </div>
 
             <div>
-              <Label htmlFor="type">Property Type</Label>
+              <Label htmlFor="type">Property Type *</Label>
               <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: value })}>
                 <SelectTrigger className={errors.type ? "border-destructive" : ""}>
                   <SelectValue placeholder="Select property type" />
@@ -320,7 +320,7 @@ const AddEditProperty = () => {
             </div>
 
             <div>
-              <Label htmlFor="city">City</Label>
+              <Label htmlFor="city">City *</Label>
               <Input
                 id="city"
                 value={form.city}
@@ -332,7 +332,7 @@ const AddEditProperty = () => {
             </div>
 
             <div>
-              <Label htmlFor="neighborhood">Neighborhood</Label>
+              <Label htmlFor="neighborhood">Neighborhood *</Label>
               <Input
                 id="neighborhood"
                 value={form.neighborhood}
@@ -345,7 +345,7 @@ const AddEditProperty = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="price">Price</Label>
+                <Label htmlFor="price">Price *</Label>
                 <Input
                   id="price"
                   type="number"
@@ -356,7 +356,7 @@ const AddEditProperty = () => {
                 {errors.price && <p className="text-sm text-destructive mt-1">{errors.price}</p>}
               </div>
               <div>
-                <Label htmlFor="size">Size (m²)</Label>
+                <Label htmlFor="size">Size (m²) *</Label>
                 <Input
                   id="size"
                   type="number"
@@ -369,7 +369,7 @@ const AddEditProperty = () => {
             </div>
 
             <div>
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">Description *</Label>
               <Textarea
                 id="description"
                 value={form.description}
@@ -382,7 +382,7 @@ const AddEditProperty = () => {
             </div>
 
             <div>
-              <Label htmlFor="model">3D Model (.fbx, .glb, .gltf)</Label>
+              <Label htmlFor="model">3D Model (.fbx, .glb, .gltf) *</Label>
               <div className="mt-2">
                 <label htmlFor="model" className="cursor-pointer">
                   <div
