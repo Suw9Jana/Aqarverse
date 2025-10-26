@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+// import { Textarea } from "@/components/ui/textarea"; // لم نعد نستخدم الوصف اليدوي
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -11,11 +11,11 @@ import { ArrowLeft, Upload } from "lucide-react";
 import logo from "@/assets/aqarverse_logo.jpg";
 
 /* Firebase */
-import { auth, db /*, storage*/ } from "@/lib/firebase";
+import { auth, db, storage } from "@/lib/firebase";
 import { addDoc, collection, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
-// import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-const ENABLE_STORAGE = false; // keep false for now (no Storage writes)
+const ENABLE_STORAGE = true; // اتركها true لتمكين الرفع إلى Storage
 
 type Status = "draft" | "pending_review" | "approved" | "rejected";
 
@@ -24,16 +24,32 @@ type PropertyDoc = {
   type: string;
   city: string;
   neighborhood: string;
-  description: string;
+  description: string; // سيُولّد تلقائياً
   price: number;
   size: number;
   ownerUid: string;
   status: Status;
+
+  // مواصفات منظمة
+  bedrooms?: number;
+  bathrooms?: number;
+  hasKitchen?: boolean;
+  hasLivingRoom?: boolean;
+
+  // model file metadata
   fileName?: string;
   fileSize?: number;
   fileType?: string;
   filePath?: string;
   fileUrl?: string;
+
+  // image (optional)
+  imageName?: string;
+  imageSize?: number;
+  imageType?: string;
+  imagePath?: string;
+  imageUrl?: string;
+
   createdAt?: any;
   updatedAt?: any;
 };
@@ -51,14 +67,22 @@ const AddEditProperty = () => {
     neighborhood: "",
     price: "" as string | number,
     size: "" as string | number,
-    description: "",
+
+    // الحقول الجديدة
+    bedrooms: "" as string | number,
+    bathrooms: "" as string | number,
+    hasKitchen: false,
+    hasLivingRoom: false,
   });
-  const [file, setFile] = useState<File | null>(null);
+
+  const [file, setFile] = useState<File | null>(null);      // 3D model
+  const [image, setImage] = useState<File | null>(null);    // optional cover image
+
   const [existingFileName, setExistingFileName] = useState<string>("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<boolean>(isEdit);
 
-  // NEW: track doc's current status for resubmission logic
+  // تتبع حالة الوثيقة الحالية (للإرسال للمراجعة بعد الرفض/الدرافت)
   const [docStatus, setDocStatus] = useState<Status | null>(null);
 
   /* -------------------------- Load for Edit -------------------------- */
@@ -80,10 +104,14 @@ const AddEditProperty = () => {
           neighborhood: d.neighborhood || "",
           price: d.price ?? "",
           size: d.size ?? "",
-          description: d.description || "",
+
+          bedrooms: d.bedrooms ?? "",
+          bathrooms: d.bathrooms ?? "",
+          hasKitchen: !!d.hasKitchen,
+          hasLivingRoom: !!d.hasLivingRoom,
         });
         setExistingFileName(d.fileName || "");
-        setDocStatus(d.status ?? null);         // ← NEW
+        setDocStatus(d.status ?? null);
       } catch (e: any) {
         toast({ title: "Load failed", description: e?.message || "Try again.", variant: "destructive" });
         navigate("/dashboard/company");
@@ -114,8 +142,11 @@ const AddEditProperty = () => {
     const sizeNum = Number(form.size);
     if (!Number.isFinite(sizeNum) || sizeNum <= 0) e.size = "Enter a valid positive size.";
 
-    const desc = form.description.trim();
-    if (!desc || desc.length < 20 || desc.length > 1000) e.description = "Please provide a description (20–1000 chars).";
+    // تحقق من القيم الجديدة
+    const bedroomsNum = Number(form.bedrooms);
+    const bathroomsNum = Number(form.bathrooms);
+    if (!Number.isInteger(bedroomsNum) || bedroomsNum < 0) e.bedrooms = "Bedrooms must be an integer ≥ 0.";
+    if (!Number.isInteger(bathroomsNum) || bathroomsNum < 0) e.bathrooms = "Bathrooms must be an integer ≥ 0.";
 
     if (!isEdit && !file) e.file = "3D model file is required";
     if (file) {
@@ -123,6 +154,14 @@ const AddEditProperty = () => {
       const max = 50 * 1024 * 1024;
       if (!valid) e.file = "Unsupported file type (.fbx, .glb, .gltf only).";
       else if (file.size > max) e.file = "File size exceeds 50MB.";
+    }
+
+    // image optional — validate only if provided
+    if (image) {
+      const iv = ["image/png", "image/jpeg", "image/webp"];
+      if (!iv.includes(image.type)) e.image = "Image must be PNG/JPEG/WEBP.";
+      const maxImg = 10 * 1024 * 1024;
+      if (image.size > maxImg) e.image = "Image size exceeds 10MB.";
     }
 
     setErrors(e);
@@ -138,7 +177,14 @@ const AddEditProperty = () => {
     }
   };
 
-  // (Storage disabled) — return clean, defined metadata only
+  const onImage = (ev: React.ChangeEvent<HTMLInputElement>) => {
+    const f = ev.target.files?.[0];
+    if (f) {
+      setImage(f);
+      setErrors((prev) => ({ ...prev, image: "" }));
+    }
+  };
+
   const fileMetaForCreate = (f: File | null) => {
     if (!f) return {};
     const lower = f.name.toLowerCase();
@@ -159,6 +205,49 @@ const AddEditProperty = () => {
     };
   };
 
+  const imageMetaForCreate = (f: File | null) => {
+    if (!f) return {};
+    return {
+      imageName: f.name,
+      imageSize: f.size,
+      imageType: f.type || "image/*",
+    };
+  };
+
+  // Helper لرفع أي ملف وإرجاع (path, url)
+  const uploadToStorage = async (f: File, pathPrefix: string) => {
+    const safeName = f.name.replace(/\s+/g, "_");
+    const path = `${pathPrefix}/${Date.now()}_${safeName}`;
+    const r = ref(storage, path);
+    await uploadBytes(r, f, { contentType: f.type || undefined });
+    const url = await getDownloadURL(r);
+    return { path, url };
+  };
+
+  // توليد وصف تلقائي من الحقول المنظمة
+  const buildAutoDescription = (opts: {
+    bedrooms: number;
+    bathrooms: number;
+    hasKitchen: boolean;
+    hasLivingRoom: boolean;
+  }) => {
+    const parts: string[] = [];
+
+    // main sentence
+    const bed = `${opts.bedrooms} ${opts.bedrooms === 1 ? "bedroom" : "bedrooms"}`;
+    const bath = `${opts.bathrooms} ${opts.bathrooms === 1 ? "bathroom" : "bathrooms"}`;
+    parts.push(`Property with ${bed} and ${bath}`);
+
+    const facilities: string[] = [];
+    if (opts.hasKitchen) facilities.push("a kitchen");
+    if (opts.hasLivingRoom) facilities.push("a living room");
+    if (facilities.length) {
+      parts.push(`includes ${facilities.join(" and ")}`);
+    }
+
+    return parts.join(", ") + ".";
+  };
+
   const save = async (asStatus: Status) => {
     if (!validate()) return;
 
@@ -169,28 +258,59 @@ const AddEditProperty = () => {
       return;
     }
 
-    // base fields (strings trimmed, numbers parsed)
+    const priceNum = Number(form.price);
+    const sizeNum = Number(form.size);
+    const bedroomsNum = Number(form.bedrooms);
+    const bathroomsNum = Number(form.bathrooms);
+
+    // وصف تلقائي
+    const autoDescription = buildAutoDescription({
+      bedrooms: bedroomsNum,
+      bathrooms: bathroomsNum,
+      hasKitchen: form.hasKitchen,
+      hasLivingRoom: form.hasLivingRoom,
+    });
+
     const base = {
       title: form.title.trim().replace(/\s+/g, " "),
       type: form.type,
       city: form.city.trim(),
       neighborhood: form.neighborhood.trim(),
-      description: form.description.trim(),
-      price: Number(form.price),
-      size: Number(form.size),
+      description: autoDescription, // ← نخزن الوصف المولّد هنا
+      price: priceNum,
+      size: sizeNum,
+
+      bedrooms: bedroomsNum,
+      bathrooms: bathroomsNum,
+      hasKitchen: form.hasKitchen,
+      hasLivingRoom: form.hasLivingRoom,
     };
 
     try {
       if (!isEdit) {
-        // CREATE — include file metadata in the first write
+        // -------- CREATE --------
         const docData: PropertyDoc = {
           ...base,
           ...fileMetaForCreate(file),
+          ...imageMetaForCreate(image),
           ownerUid: user.uid,
-          status: asStatus, // "draft" | "pending_review"
+          status: asStatus,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
+
+        if (ENABLE_STORAGE) {
+          if (file) {
+            const up = await uploadToStorage(file, `models/${user.uid}`);
+            docData.filePath = up.path;
+            docData.fileUrl = up.url;
+          }
+          if (image) {
+            const upi = await uploadToStorage(image, `images/${user.uid}`);
+            docData.imagePath = upi.path;
+            docData.imageUrl = upi.url;
+          }
+        }
 
         await addDoc(collection(db, "Property"), docData);
 
@@ -206,26 +326,16 @@ const AddEditProperty = () => {
         return;
       }
 
-      // -------------------- EDIT --------------------
+      // -------- EDIT --------
       if (!id) return;
 
-      const ref = doc(db, "Property", id);
+      const refDoc = doc(db, "Property", id);
 
-      // Build update payload
-      const priceNum = Number(form.price);
-      const sizeNum = Number(form.size);
       const payload: Record<string, any> = {
-        title: base.title,
-        type: base.type,
-        city: base.city,
-        neighborhood: base.neighborhood,
-        description: base.description,
-        ...(Number.isFinite(priceNum) ? { price: priceNum } : {}),
-        ...(Number.isFinite(sizeNum) ? { size: sizeNum } : {}),
+        ...base,
         updatedAt: serverTimestamp(),
       };
 
-      // NEW: if user clicked "Submit for Review" on a rejected/draft doc, send status change
       if (asStatus === "pending_review" && (docStatus === "rejected" || docStatus === "draft")) {
         payload.status = "pending_review";
       }
@@ -237,11 +347,31 @@ const AddEditProperty = () => {
           if (meta[k] === undefined) delete meta[k];
         });
         Object.assign(payload, meta);
+
+        if (ENABLE_STORAGE) {
+          const up = await uploadToStorage(file, `models/${user.uid}`);
+          payload.filePath = up.path;
+          payload.fileUrl = up.url;
+        }
       }
 
-      await updateDoc(ref, payload);
+      if (image) {
+        const im = imageMetaForCreate(image);
+        Object.keys(im).forEach((k) => {
+          // @ts-expect-error runtime clean
+          if (im[k] === undefined) delete im[k];
+        });
+        Object.assign(payload, im);
 
-      // Reflect locally if we changed status
+        if (ENABLE_STORAGE) {
+          const upi = await uploadToStorage(image, `images/${user.uid}`);
+          payload.imagePath = upi.path;
+          payload.imageUrl = upi.url;
+        }
+      }
+
+      await updateDoc(refDoc, payload);
+
       if (payload.status === "pending_review") setDocStatus("pending_review");
 
       toast({ title: "Property updated", description: "Your changes have been saved." });
@@ -345,7 +475,7 @@ const AddEditProperty = () => {
             </div>
 
             <div>
-              <Label htmlFor="neighborhood">Neighborhood *</Label>
+              <Label htmlFor="neighborhood">District *</Label>
               <Input
                 id="neighborhood"
                 value={form.neighborhood}
@@ -369,7 +499,7 @@ const AddEditProperty = () => {
                 {errors.price && <p className="text-sm text-destructive mt-1">{errors.price}</p>}
               </div>
               <div>
-                <Label htmlFor="size">Size (m²) *</Label>
+                <Label htmlFor="size">Area *</Label>
                 <Input
                   id="size"
                   type="number"
@@ -381,18 +511,58 @@ const AddEditProperty = () => {
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="description">Description *</Label>
-              <Textarea
-                id="description"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Describe the property..."
-                rows={4}
-                className={errors.description ? "border-destructive" : ""}
-              />
-              {errors.description && <p className="text-sm text-destructive mt-1">{errors.description}</p>}
+            {/* الحقول المنظمة الجديدة */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="bedrooms">Bedrooms *</Label>
+                <Input
+                  id="bedrooms"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={form.bedrooms}
+                  onChange={(e) => setForm({ ...form, bedrooms: e.target.value })}
+                  className={errors.bedrooms ? "border-destructive" : ""}
+                />
+                {errors.bedrooms && <p className="text-sm text-destructive mt-1">{errors.bedrooms}</p>}
+              </div>
+              <div>
+                <Label htmlFor="bathrooms">Bathrooms *</Label>
+                <Input
+                  id="bathrooms"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={form.bathrooms}
+                  onChange={(e) => setForm({ ...form, bathrooms: e.target.value })}
+                  className={errors.bathrooms ? "border-destructive" : ""}
+                />
+                {errors.bathrooms && <p className="text-sm text-destructive mt-1">{errors.bathrooms}</p>}
+              </div>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex items-center gap-2">
+                <input
+                  id="hasKitchen"
+                  type="checkbox"
+                  checked={form.hasKitchen}
+                  onChange={(e) => setForm({ ...form, hasKitchen: e.target.checked })}
+                />
+                <Label htmlFor="hasKitchen">Includes Kitchen</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id="hasLivingRoom"
+                  type="checkbox"
+                  checked={form.hasLivingRoom}
+                  onChange={(e) => setForm({ ...form, hasLivingRoom: e.target.checked })}
+                />
+                <Label htmlFor="hasLivingRoom">Includes Living Room</Label>
+              </div>
+            </div>
+
+            {/* أزلنا Textarea للوصف الحر — سيُولّد تلقائياً عند الحفظ */}
 
             <div>
               <Label htmlFor="model">3D Model (.fbx, .glb, .gltf) *</Label>
@@ -418,6 +588,28 @@ const AddEditProperty = () => {
               {errors.file && <p className="text-sm text-destructive mt-1">{errors.file}</p>}
             </div>
 
+            {/* صورة اختيارية */}
+            <div>
+              <Label htmlFor="image">Property Image (PNG/JPEG/WEBP) — optional</Label>
+              <div className="mt-2">
+                <label htmlFor="image" className="cursor-pointer">
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors ${
+                      errors.image ? "border-destructive" : "border-border"
+                    }`}
+                  >
+                    <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {image ? image.name : "Click to upload or drag and drop"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Max 10MB</p>
+                  </div>
+                </label>
+                <input id="image" type="file" accept="image/png,image/jpeg,image/webp" onChange={onImage} className="hidden" />
+              </div>
+              {errors.image && <p className="text-sm text-destructive mt-1">{errors.image}</p>}
+            </div>
+
             <div className="flex gap-3 pt-4">
               <Button variant="outline" onClick={() => navigate("/dashboard/company")} className="flex-1">
                 Cancel
@@ -435,4 +627,5 @@ const AddEditProperty = () => {
     </div>
   );
 };
+
 export default AddEditProperty;

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Save, Eye, EyeOff, Upload } from "lucide-react";
 import logo from "@/assets/aqarverse_logo.jpg";
 
 /* ⬇️ New import for the popup */
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 
 /* Firebase */
-import { auth, db } from "@/lib/firebase";
+import { auth, db, storage } from "@/lib/firebase";
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
@@ -30,6 +30,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { ref as sRef, uploadBytes, getDownloadURL } from "firebase/storage";
 
 type Role = "customer" | "company";
 
@@ -53,6 +54,12 @@ const EditProfile = () => {
     password: "",
     confirmPassword: "",
   });
+
+  // 👇 صورة الشركة (اختيارية)
+  const [companyPhotoFile, setCompanyPhotoFile] = useState<File | null>(null);
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState<string>(""); // من Firestore لو موجود
+  const [photoPreview, setPhotoPreview] = useState<string>(""); // للعرض الفوري
+  const [uploadingPhoto, setUploadingPhoto] = useState<boolean>(false);
 
   const [showOld, setShowOld] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -99,6 +106,8 @@ const EditProfile = () => {
             location: d?.Location || d?.location || "",
             licenseNumber: d?.licenseNumber || "",
           }));
+          setExistingPhotoUrl(d?.photoUrl || d?.photoURL || ""); // حفظ رابط الصورة الحالية إن وُجد
+          setPhotoPreview(d?.photoUrl || d?.photoURL || "");
           setInitialEmail(user.email || d?.email || "");
           setLoading(false);
           return;
@@ -135,7 +144,6 @@ const EditProfile = () => {
         newErrors.licenseNumber = "Please enter your license number.";
       }
     }
-    // same password logic — fields now live inside the modal but still bound to formData
     const wantsPasswordChange = Boolean(formData.oldPassword || formData.password || formData.confirmPassword);
     if (wantsPasswordChange) {
       if (!formData.oldPassword) newErrors.oldPassword = "Current password is required to change your password.";
@@ -151,6 +159,13 @@ const EditProfile = () => {
       if (!formData.confirmPassword) newErrors.confirmPassword = "Please confirm your new password.";
       else if (formData.password !== formData.confirmPassword)
         newErrors.confirmPassword = "Passwords do not match.";
+    }
+
+    // الصورة اختيارية؛ لو انرفعت نتحقق من النوع والحجم
+    if (companyPhotoFile) {
+      const allowed = ["image/png", "image/jpeg", "image/webp"];
+      if (!allowed.includes(companyPhotoFile.type)) newErrors.companyPhoto = "Image must be PNG/JPEG/WEBP.";
+      if (companyPhotoFile.size > 5 * 1024 * 1024) newErrors.companyPhoto = "Image size exceeds 5MB.";
     }
 
     setErrors(newErrors);
@@ -182,6 +197,7 @@ const EditProfile = () => {
       if (emailChanged) await updateEmail(user, formData.email.trim());
       if (formData.password) await updatePassword(user, formData.password);
 
+      // تجهيز بيانات التحديث العامة
       if (role === "customer") {
         await updateDoc(doc(db, "Customer", uid), {
           name: formData.fullName.trim(),
@@ -190,12 +206,27 @@ const EditProfile = () => {
           updatedAt: serverTimestamp(),
         });
       } else {
+        // ⬇️ رفع صورة الشركة إن وُجدت (الخطوة التي طلبتها)
+        let photoUrlToSave = existingPhotoUrl; // نُبقي القديمة إن ما رفع صورة جديدة
+        if (companyPhotoFile) {
+          setUploadingPhoto(true);
+          const safeName = companyPhotoFile.name.replace(/\s+/g, "_");
+          const path = `company-photos/${uid}/${Date.now()}_${safeName}`;
+          const r = sRef(storage, path);
+          await uploadBytes(r, companyPhotoFile, {
+            contentType: companyPhotoFile.type || undefined,
+          });
+          photoUrlToSave = await getDownloadURL(r); // ✅ الرابط النهائي
+          setUploadingPhoto(false);
+        }
+
         await updateDoc(doc(db, "company", uid), {
           companyName: formData.fullName.trim(),
           email: formData.email.trim(),
           phone: formData.phone.trim(),
           Location: formData.location.trim(),
           licenseNumber: formData.licenseNumber.trim(),
+          ...(photoUrlToSave ? { photoUrl: photoUrlToSave } : {}), // نحفظ الرابط إن وُجد
           updatedAt: serverTimestamp(),
         });
       }
@@ -214,6 +245,7 @@ const EditProfile = () => {
       if (err?.code === "auth/requires-recent-login") {
         try { await signOut(auth); } catch {}
       }
+      setUploadingPhoto(false);
       toast({ title: "Update Failed", description: message, variant: "destructive" });
     }
   };
@@ -222,6 +254,14 @@ const EditProfile = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const onPickCompanyPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setCompanyPhotoFile(f);
+    setPhotoPreview(URL.createObjectURL(f));
+    setErrors((prev) => ({ ...prev, companyPhoto: "" }));
   };
 
   if (loading) {
@@ -267,7 +307,6 @@ const EditProfile = () => {
             <CardDescription>Update your personal information</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Give the form an id so modal buttons can submit it */}
             <form id="editProfileForm" onSubmit={handleSubmit} className="space-y-6">
               {/* Name */}
               <div className="space-y-2">
@@ -348,6 +387,37 @@ const EditProfile = () => {
                       className={errors.licenseNumber ? "border-destructive" : ""}
                     />
                     {errors.licenseNumber && <p className="text-sm text-destructive">{errors.licenseNumber}</p>}
+                  </div>
+
+                  {/* Company Photo (optional) */}
+                  <div className="space-y-2">
+                    <Label htmlFor="companyPhoto">Company Photo (PNG/JPEG/WEBP ≤ 5MB)</Label>
+                    <label htmlFor="companyPhoto" className="cursor-pointer">
+                      <div className={`border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors ${errors.companyPhoto ? "border-destructive" : "border-border"}`}>
+                        <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Click to upload or drag and drop</p>
+                        {photoPreview && (
+                          <div className="mt-3 flex justify-center">
+                            <img
+                              src={photoPreview}
+                              alt="Preview"
+                              className="h-20 w-20 rounded object-cover border"
+                            />
+                          </div>
+                        )}
+                        {uploadingPhoto && (
+                          <p className="text-xs text-muted-foreground mt-2">Uploading…</p>
+                        )}
+                      </div>
+                    </label>
+                    <input
+                      id="companyPhoto"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={onPickCompanyPhoto}
+                      className="hidden"
+                    />
+                    {errors.companyPhoto && <p className="text-sm text-destructive">{errors.companyPhoto}</p>}
                   </div>
                 </>
               )}
@@ -449,16 +519,15 @@ const EditProfile = () => {
                       <DialogClose asChild>
                         <Button type="button" variant="outline">Cancel</Button>
                       </DialogClose>
-                      {/* This submits the main form with the password fields included */}
                       <Button type="submit" form="editProfileForm">Save Changes</Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
               </div>
 
-              <Button type="submit" className="w-full">
+              <Button type="submit" className="w-full" disabled={uploadingPhoto}>
                 <Save className="h-4 w-4 mr-2" />
-                Save Changes
+                {uploadingPhoto ? "Uploading…" : "Save Changes"}
               </Button>
             </form>
           </CardContent>

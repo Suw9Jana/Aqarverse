@@ -1,4 +1,3 @@
-// src/pages/Partners.tsx
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
@@ -11,8 +10,9 @@ import { Search, Sparkles } from "lucide-react";
 import riyadhSkyline from "@/assets/riyadh-skyline.jpg";
 
 /* Firebase */
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
+import { ref as sRef, getDownloadURL } from "firebase/storage";
 
 const ITEMS_PER_LOAD = 3;
 
@@ -22,7 +22,10 @@ type Partner = {
   city: string;
   phone?: string;
   email?: string;
-  photoUrl?: string;      // optional – add this field later to company docs if you want logos
+  photoUrl?: string;   // قد تكون https أو gs
+  photoURL?: string;
+  photoPath?: string;
+  logoPath?: string;
 };
 
 const Partners = () => {
@@ -37,24 +40,54 @@ const Partners = () => {
   const [companies, setCompanies] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ---- Load companies from Firestore ----
+  // دالة صغيرة لتحويل أي قيمة (https أو gs أو مسار) إلى رابط https إن لزم
+  const resolveToHttps = async (candidate?: string): Promise<string | undefined> => {
+    if (!candidate) return undefined;
+    if (candidate.startsWith("http")) return candidate;         // جاهز
+    // اعتبرها مسار داخل البكت
+    try {
+      const url = await getDownloadURL(sRef(storage, candidate));
+      return url;
+    } catch {
+      return undefined;
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
     (async () => {
       try {
-        // We stored company profiles at /company/{uid} during registration
         const snap = await getDocs(collection(db, "company"));
-        const list: Partner[] = snap.docs.map((d) => {
+        const baseList: Partner[] = snap.docs.map((d) => {
           const data = d.data() as any;
           return {
             id: d.id,
             name: data.companyName ?? data.name ?? "Company",
-            city: data.city ?? data.Location ?? "",   // you had "Location" earlier; keep both for safety
+            city: data.city ?? data.Location ?? "",
             phone: data.phone ?? "",
             email: data.email ?? "",
-            photoUrl: data.photoUrl ?? "",            // optional field – safe if missing
+            photoUrl: data.photoUrl ?? data.photoURL ?? "", // قد تكون https أو gs
+            photoURL: data.photoURL ?? "",
+            photoPath: data.photoPath ?? "",
+            logoPath: data.logoPath ?? "",
           };
         });
+
+        // حوّل أي قيمة غير https إلى رابط تنزيل
+        const list = await Promise.all(
+          baseList.map(async (c) => {
+            // جرّب photoUrl أولاً (قد تكون https أو gs)
+            let finalUrl = await resolveToHttps(c.photoUrl);
+            if (!finalUrl) {
+              // جرّب الحقول الأخرى كمسارات
+              finalUrl =
+                (await resolveToHttps(c.photoPath)) ||
+                (await resolveToHttps(c.logoPath)) ||
+                (await resolveToHttps(c.photoURL));
+            }
+            return { ...c, photoUrl: finalUrl };
+          })
+        );
 
         if (isMounted) setCompanies(list);
       } catch (e) {
@@ -66,7 +99,6 @@ const Partners = () => {
     return () => { isMounted = false; };
   }, []);
 
-  // ---- Search & pagination ----
   const filteredCompanies = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return companies;
@@ -80,7 +112,6 @@ const Partners = () => {
   const displayedCompanies = filteredCompanies.slice(0, itemsToShow);
   const hasMore = itemsToShow < filteredCompanies.length;
 
-  // ---- Reveal-on-scroll animation ----
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -101,7 +132,6 @@ const Partners = () => {
     return () => observer.disconnect();
   }, [displayedCompanies]);
 
-  // Reset when searching
   useEffect(() => {
     setItemsToShow(ITEMS_PER_LOAD);
     setVisibleCards(new Set());
@@ -109,22 +139,14 @@ const Partners = () => {
   }, [searchQuery]);
 
   const loadMore = () => {
-    // keep your existing behavior (go to an "all partners" page),
-    // or uncomment the line below to just reveal more on this page:
-    // setItemsToShow((n) => n + ITEMS_PER_LOAD);
     navigate("/partners/all");
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-
-      {/* Hero */}
       <section className="relative overflow-hidden" style={{ background: "var(--gradient-hero)" }}>
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-40"
-          style={{ backgroundImage: `url(${riyadhSkyline})` }}
-        />
+        <div className="absolute inset-0 bg-cover bg-center opacity-60" style={{ backgroundImage: `url(${riyadhSkyline})` }} />
         <div className="container mx-auto px-4 py-20 md:py-28 relative z-10">
           <div className="max-w-4xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-background/10 backdrop-blur-sm border border-white/20 mb-6 animate-fade-in">
@@ -145,12 +167,8 @@ const Partners = () => {
       <main className="container mx-auto px-4 py-16 md:py-20">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              {t("trustedPartners")}
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto font-light">
-              {t("partnersDescription")}
-            </p>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">{t("trustedPartners")}</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto font-light">{t("partnersDescription")}</p>
           </div>
 
           <div className="mb-12 max-w-md mx-auto">
@@ -166,7 +184,6 @@ const Partners = () => {
             </div>
           </div>
 
-          {/* Cards */}
           {loading ? (
             <div className="text-center py-16 text-muted-foreground">{t("loading") || "Loading…"}</div>
           ) : (
@@ -177,13 +194,9 @@ const Partners = () => {
                     key={company.id}
                     ref={(el) => (cardsRef.current[index] = el)}
                     data-index={index}
-                    className={`transition-all duration-700 ${
-                      visibleCards.has(index) ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
-                    }`}
+                    className={`transition-all duration-700 ${visibleCards.has(index) ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"}`}
                     style={{ transitionDelay: `${index * 100}ms` }}
                   >
-                    {/* CompanyCard should accept these fields. 
-                       If your component expects a different shape, adapt here. */}
                     <CompanyCard
                       company={{
                         id: company.id,
@@ -191,7 +204,7 @@ const Partners = () => {
                         city: company.city,
                         phone: company.phone,
                         email: company.email,
-                        imageUrl: company.photoUrl, // your card might call this "imageUrl"
+                        imageUrl: company.photoUrl || undefined,
                       }}
                     />
                   </div>
@@ -204,7 +217,7 @@ const Partners = () => {
                 </div>
               )}
 
-              {hasMore && (
+              {itemsToShow < filteredCompanies.length && (
                 <div className="flex justify-center">
                   <Button onClick={loadMore} size="lg" className="min-w-[200px]">
                     {t("loadMore")}

@@ -9,18 +9,22 @@ import { Search, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 /* Firebase */
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
+import { ref as sRef, getDownloadURL } from "firebase/storage";
 
 const ITEMS_PER_LOAD = 9;
 
 type CompanyDoc = {
   id: string;
-  companyName?: string; // Firestore field
-  Location?: string;    // Firestore field
-  email?: string;       // Firestore field
-  phone?: string;       // Firestore field
-  // photoURL?: string; // (optional) if you add later
+  companyName?: string;
+  Location?: string;
+  email?: string;
+  phone?: string;
+  photoUrl?: string;   // قد تكون https أو gs
+  photoURL?: string;
+  photoPath?: string;
+  logoPath?: string;
 };
 
 export default function AllPartners() {
@@ -34,7 +38,17 @@ export default function AllPartners() {
   const [loading, setLoading] = useState(true);
   const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
 
-  // --- Load companies from Firestore once ---
+  const resolveToHttps = async (candidate?: string): Promise<string | undefined> => {
+    if (!candidate) return undefined;
+    if (candidate.startsWith("http")) return candidate;
+    try {
+      const url = await getDownloadURL(sRef(storage, candidate));
+      return url;
+    } catch {
+      return undefined;
+    }
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -44,13 +58,30 @@ export default function AllPartners() {
           return {
             id: d.id,
             companyName: data.companyName || "",
-            Location: data.Location || "",
+            Location: data.Location || data.city || "",
             email: data.email || "",
             phone: data.phone || "",
-            // photoURL: data.photoURL || "",
+            photoUrl: data.photoUrl || data.photoURL || "",
+            photoURL: data.photoURL || "",
+            photoPath: data.photoPath || "",
+            logoPath: data.logoPath || "",
           };
         });
-        setCompanies(rows);
+
+        const resolved = await Promise.all(
+          rows.map(async (r) => {
+            let finalUrl = await resolveToHttps(r.photoUrl);
+            if (!finalUrl) {
+              finalUrl =
+                (await resolveToHttps(r.photoPath)) ||
+                (await resolveToHttps(r.logoPath)) ||
+                (await resolveToHttps(r.photoURL));
+            }
+            return { ...r, photoUrl: finalUrl };
+          })
+        );
+
+        setCompanies(resolved);
       } catch (e: any) {
         toast({
           title: "Could not load partners",
@@ -66,7 +97,6 @@ export default function AllPartners() {
     })();
   }, [toast]);
 
-  // --- Search + client-side pagination (same UX as before) ---
   const filteredCompanies = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return companies;
@@ -80,7 +110,6 @@ export default function AllPartners() {
   const displayedCompanies = filteredCompanies.slice(0, itemsToShow);
   const hasMore = itemsToShow < filteredCompanies.length;
 
-  // --- Intersection observer for the fade-in animation ---
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -101,7 +130,6 @@ export default function AllPartners() {
     return () => observer.disconnect();
   }, [displayedCompanies]);
 
-  // Reset paging + animation when search changes
   useEffect(() => {
     setItemsToShow(ITEMS_PER_LOAD);
     setVisibleCards(new Set());
@@ -123,12 +151,8 @@ export default function AllPartners() {
                 {loading ? "…" : companies.length} {t("partners")}
               </span>
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-              {t("allPartners")}
-            </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              {t("browseAllPartners")}
-            </p>
+            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">{t("allPartners")}</h1>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">{t("browseAllPartners")}</p>
           </div>
 
           <div className="mb-10 max-w-md mx-auto">
@@ -144,34 +168,27 @@ export default function AllPartners() {
             </div>
           </div>
 
-          {/* Grid */}
           {loading ? (
             <div className="text-center py-12 text-muted-foreground">Loading…</div>
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-                {displayedCompanies.map((company, index) => (
+                {displayedCompanies.map((c, index) => (
                   <div
-                    key={company.id}
+                    key={c.id}
                     ref={(el) => (cardsRef.current[index] = el)}
                     data-index={index}
-                    className={`transition-all duration-700 ${
-                      visibleCards.has(index)
-                        ? "opacity-100 translate-y-0"
-                        : "opacity-0 translate-y-12"
-                    }`}
+                    className={`transition-all duration-700 ${visibleCards.has(index) ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"}`}
                     style={{ transitionDelay: `${(index % ITEMS_PER_LOAD) * 100}ms` }}
                   >
-                    {/* Map Firestore fields to what CompanyCard expects */}
                     <CompanyCard
                       company={{
-                        id: company.id,
-                        // Fall back gracefully if your card uses different keys
-                        name: company.companyName || "—",
-                        city: company.Location || "—",
-                        email: company.email || "—",
-                        phone: company.phone || "—",
-                        // imageUrl: company.photoURL, // if you add later
+                        id: c.id,
+                        name: c.companyName || "—",
+                        city: c.Location || "—",
+                        email: c.email || "—",
+                        phone: c.phone || "—",
+                        imageUrl: c.photoUrl || undefined,
                       }}
                     />
                   </div>

@@ -1,3 +1,4 @@
+// src/pages/CustomerDashboard.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/aqarverse_logo.jpg";
 
 /* Firebase */
-import { auth, db } from "@/lib/firebase";
+import { auth, db, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
@@ -17,8 +18,10 @@ import {
   where,
   documentId,
 } from "firebase/firestore";
+import { getDownloadURL, ref as sRef } from "firebase/storage";
 
 type Status = "draft" | "pending_review" | "approved" | "rejected";
+
 type PropertyDoc = {
   id: string;
   title: string;
@@ -31,13 +34,21 @@ type PropertyDoc = {
   status: Status;
   ownerUid: string;
   companyName?: string;
+
+  // ⬇️ صور
+  imageUrl?: string;    // رابط HTTPS جاهز
+  coverUrl?: string;    // احتمال تسمية أخرى
+  photoUrl?: string;    // احتمال تسمية أخرى
+  coverPath?: string;   // مسار داخل Storage
+  photoPath?: string;   // مسار داخل Storage
+  images?: any[];       // مصفوفة صور (روابط أو مسارات)
 };
 
 export default function CustomerDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // ---- Auth gate (prevents “load once with null uid”) ----
+  // ---- Auth gate ----
   const [authReady, setAuthReady] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
 
@@ -49,16 +60,16 @@ export default function CustomerDashboard() {
     return unsub;
   }, []);
 
-  // ---- Favorites + properties state ----
+  // ---- Favorites + properties ----
   const [loadingFavIds, setLoadingFavIds] = useState(true);
   const [favIds, setFavIds] = useState<string[]>([]);
   const [loadingProps, setLoadingProps] = useState(false);
   const [properties, setProperties] = useState<PropertyDoc[]>([]);
 
-  // 1) Live-listen to /Customer/{uid}/favorites (doc id == property id)
+  // 1) استمع للمفضلة
   useEffect(() => {
-    if (!authReady) return;                // wait for auth
-    if (!uid) {                            // not signed in
+    if (!authReady) return;
+    if (!uid) {
       setFavIds([]);
       setLoadingFavIds(false);
       return;
@@ -70,12 +81,10 @@ export default function CustomerDashboard() {
       favCol,
       (snap) => {
         const ids = snap.docs.map((d) => d.id);
-        console.log("[Favorites] doc count:", snap.size, "ids:", ids);
         setFavIds(ids);
         setLoadingFavIds(false);
       },
       (err) => {
-        console.error("[Favorites onSnapshot]", err);
         setLoadingFavIds(false);
         toast({
           title: "Failed to load favorites",
@@ -90,7 +99,48 @@ export default function CustomerDashboard() {
     return () => unsub();
   }, [authReady, uid, toast]);
 
-  // 2) When favIds change, fetch Property docs in chunks of 10.
+  // helper: التقط أول رابط HTTPS إن وُجد
+  const pickHttps = (v: any): string | undefined => {
+    if (!v) return undefined;
+    if (typeof v === "string" && v.startsWith("http")) return v;
+    if (Array.isArray(v)) {
+      const found = v.find((x) => typeof x === "string" && x.startsWith("http"));
+      if (found) return found;
+      // أحيانًا عنصر المصفوفة يكون كائن { url / path }
+      const fromObj = v.find(
+        (x) => typeof x?.url === "string" && x.url.startsWith("http")
+      );
+      if (fromObj) return fromObj.url;
+    }
+    if (typeof v === "object") {
+      const keys = ["imageUrl", "url", "downloadUrl", "src"];
+      for (const k of keys) {
+        const val = v[k];
+        if (typeof val === "string" && val.startsWith("http")) return val;
+      }
+    }
+    return undefined;
+  };
+
+  // helper: التقط أول مسار داخل Storage
+  const pickStoragePath = (data: any): string | undefined => {
+    const candidates = [
+      data.coverPath,
+      data.photoPath,
+      data.mainImagePath,
+      data.imagePath,
+      // لو images مصفوفة مسارات/كائنات
+      Array.isArray(data.images) && typeof data.images[0] === "string"
+        ? data.images[0]
+        : undefined,
+      Array.isArray(data.images) && typeof data.images[0]?.path === "string"
+        ? data.images[0].path
+        : undefined,
+    ].filter(Boolean) as string[];
+    return candidates[0];
+  };
+
+  // 2) اجلب وثائق Property + جهز رابط الصورة
   useEffect(() => {
     const run = async () => {
       if (favIds.length === 0) {
@@ -104,18 +154,35 @@ export default function CustomerDashboard() {
 
         const results: PropertyDoc[] = [];
         for (const ids of chunks) {
-          const q = query(collection(db, "Property"), where(documentId(), "in", ids));
-          const snap = await getDocs(q);
-          console.log("[Property fetch] asked for", ids.length, "got", snap.size);
-          snap.forEach((d) => {
+          const qRef = query(collection(db, "Property"), where(documentId(), "in", ids));
+          const snap = await getDocs(qRef);
+          for (const d of snap.docs) {
             const data = d.data() as any;
-            // Firestore rules already block non-readable docs. Don’t filter by status here.
-            results.push({ id: d.id, ...data });
-          });
+
+            // 1) جرّب أي رابط HTTPS مباشر
+            let imgUrl =
+              pickHttps(data.imageUrl) ||
+              pickHttps(data.coverUrl) ||
+              pickHttps(data.photoUrl) ||
+              pickHttps(data.images);
+
+            // 2) لو ما فيه رابط، جرّب مسار Storage
+            if (!imgUrl) {
+              const path = pickStoragePath(data);
+              if (path) {
+                try {
+                  imgUrl = await getDownloadURL(sRef(storage, path));
+                } catch {
+                  // تجاهل الخطأ: نعرض كارد بدون صورة
+                }
+              }
+            }
+
+            results.push({ id: d.id, ...data, imageUrl: imgUrl });
+          }
         }
         setProperties(results);
       } catch (err: any) {
-        console.error("[Property fetch]", err);
         toast({
           title: "Failed to load properties",
           description: err.message || "Could not load favorite properties.",
@@ -174,11 +241,19 @@ export default function CustomerDashboard() {
         </div>
 
         {!authReady && (
-          <Card><CardContent className="py-16 text-center"><p className="text-muted-foreground">Checking session…</p></CardContent></Card>
+          <Card>
+            <CardContent className="py-16 text-center">
+              <p className="text-muted-foreground">Checking session…</p>
+            </CardContent>
+          </Card>
         )}
 
         {authReady && (loadingFavIds || loadingProps) && (
-          <Card><CardContent className="py-16 text-center"><p className="text-muted-foreground">Loading…</p></CardContent></Card>
+          <Card>
+            <CardContent className="py-16 text-center">
+              <p className="text-muted-foreground">Loading…</p>
+            </CardContent>
+          </Card>
         )}
 
         {authReady && empty && (
@@ -201,6 +276,23 @@ export default function CustomerDashboard() {
                 className="group overflow-hidden hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 border-primary/20 bg-card/80 backdrop-blur-sm hover:-translate-y-2"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
+                {/* صورة الغلاف */}
+                <div className="relative w-full aspect-[16/10] overflow-hidden">
+                  {property.imageUrl ? (
+                    <img
+                      src={property.imageUrl}
+                      alt={property.title}
+                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="h-full w-full bg-muted/40 grid place-items-center text-muted-foreground">
+                      No image
+                    </div>
+                  )}
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+                </div>
+
                 <CardHeader className="pb-4">
                   <div className="flex items-start justify-between mb-3">
                     <CardTitle className="text-xl group-hover:text-primary transition-colors">
@@ -219,6 +311,7 @@ export default function CustomerDashboard() {
                     </CardDescription>
                   )}
                 </CardHeader>
+
                 <CardContent className="space-y-4">
                   {property.description && (
                     <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">

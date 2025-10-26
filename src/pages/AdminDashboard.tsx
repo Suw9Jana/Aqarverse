@@ -72,13 +72,12 @@ export default function AdminDashboard() {
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  // ---- Live stream all properties (admins can read all) ----
+  // ---- Live stream all properties ----
   useEffect(() => {
     const unsub = onSnapshot(
       collection(db, "Property"),
       (snap) => {
         const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as PropertyRow[];
-        // Sort client-side by createdAt desc if present
         rows.sort((a, b) => {
           const ta = a.createdAt?.toMillis?.() ?? 0;
           const tb = b.createdAt?.toMillis?.() ?? 0;
@@ -100,7 +99,7 @@ export default function AdminDashboard() {
     return () => unsub();
   }, [toast]);
 
-  // ---- Fetch related company docs (name/email) for display ----
+  // ---- Fetch companies for display ----
   useEffect(() => {
     (async () => {
       const uids = Array.from(new Set(properties.map((p) => p.ownerUid))).filter(Boolean);
@@ -109,11 +108,7 @@ export default function AdminDashboard() {
         uids.map(async (uid) => {
           if (nextMap[uid]) return;
           const s = await getDoc(doc(db, "company", uid));
-          if (s.exists()) {
-            nextMap[uid] = s.data() as CompanyDoc;
-          } else {
-            nextMap[uid] = {};
-          }
+          nextMap[uid] = s.exists() ? (s.data() as CompanyDoc) : {};
         })
       );
       setCompanyByUid(nextMap);
@@ -121,12 +116,11 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [properties]);
 
-  // ---- Filters + search (client-side) ----
+  // ---- Filters + search ----
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return properties.filter((p) => {
       if (statusFilter !== "all" && p.status !== statusFilter) return false;
-
       if (!q) return true;
 
       const companyName = companyByUid[p.ownerUid]?.companyName || "";
@@ -141,9 +135,26 @@ export default function AdminDashboard() {
     });
   }, [properties, companyByUid, searchQuery, statusFilter]);
 
-  // ---- Actions: approve / reject ----
+  // ---- Actions ----
   const approveProperty = async (id: string) => {
     try {
+      const snap = await getDoc(doc(db, "Property", id));
+      if (!snap.exists()) throw new Error("Property not found.");
+      const current = snap.data() as PropertyRow;
+
+      if (current.status === "draft") {
+        toast({ title: "Not allowed", description: "Cannot approve a draft property.", variant: "destructive" });
+        return;
+      }
+      if (current.status === "rejected") {
+        toast({ title: "Not allowed", description: "Cannot approve a rejected property.", variant: "destructive" });
+        return;
+      }
+      if (current.status === "approved") {
+        toast({ title: "Already approved", description: "This property is already approved." });
+        return;
+      }
+
       await updateDoc(doc(db, "Property", id), {
         status: "approved",
         rejectionReason: "",
@@ -172,6 +183,23 @@ export default function AdminDashboard() {
       return;
     }
     try {
+      const snap = await getDoc(doc(db, "Property", rejectTargetId));
+      if (!snap.exists()) throw new Error("Property not found.");
+      const current = snap.data() as PropertyRow;
+
+      // لا ترفض إلا الـ pending_review فقط
+      if (current.status !== "pending_review") {
+        toast({
+          title: "Not allowed",
+          description: "Only properties in 'Pending' can be rejected.",
+          variant: "destructive",
+        });
+        setRejectOpen(false);
+        setRejectTargetId(null);
+        setRejectReason("");
+        return;
+      }
+
       await updateDoc(doc(db, "Property", rejectTargetId), {
         status: "rejected",
         rejectionReason: rejectReason.trim(),
@@ -227,19 +255,18 @@ export default function AdminDashboard() {
               className="pl-10"
             />
           </div>
-          <Select
-            value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value as Status | "all")}
-          >
+          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as Status | "all")}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
               {STATUS_FILTERS.map((s) => (
                 <SelectItem key={s} value={s}>
-                  {s === "all" ? "All Status" :
-                   s === "pending_review" ? "Pending" :
-                   s.charAt(0).toUpperCase() + s.slice(1).replace("_", " ")}
+                  {s === "all"
+                    ? "All Status"
+                    : s === "pending_review"
+                    ? "Pending"
+                    : s.charAt(0).toUpperCase() + s.slice(1).replace("_", " ")}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -276,6 +303,13 @@ export default function AdminDashboard() {
                   const company = companyByUid[p.ownerUid] || {};
                   const companyName = company.companyName || "—";
                   const location = [p.city || "", p.neighborhood || ""].filter(Boolean).join(" — ");
+
+                  // إظهار الأزرار:
+                  // - Approve فقط عندما تكون Pending
+                  // - Reject فقط عندما تكون Pending
+                  const canApprove = p.status === "pending_review";
+                  const canReject = p.status === "pending_review";
+
                   return (
                     <TableRow key={p.id}>
                       <TableCell className="font-medium">{p.title}</TableCell>
@@ -285,7 +319,7 @@ export default function AdminDashboard() {
                       <TableCell><StatusBadge status={p.status} /></TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {p.status !== "approved" && (
+                          {canApprove && (
                             <Button
                               size="sm"
                               variant="secondary"
@@ -296,9 +330,9 @@ export default function AdminDashboard() {
                               Approve
                             </Button>
                           )}
-                          {p.status !== "rejected" && (
+
+                          {canReject && (
                             <Dialog open={rejectOpen && rejectTargetId === p.id} onOpenChange={(o) => {
-                              // If dialog is being opened from its trigger, set target id.
                               if (o && rejectTargetId !== p.id) {
                                 setRejectTargetId(p.id);
                                 setRejectReason("");

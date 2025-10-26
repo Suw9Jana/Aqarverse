@@ -47,9 +47,8 @@ export const Footer = () => {
           <div>
             <h3 className="font-semibold text-foreground mb-4">{t("services")}</h3>
             <ul className="space-y-2">
-              <li className="text-sm text-muted-foreground">{t("propertyManagement")}</li>
-              <li className="text-sm text-muted-foreground">{t("realEstateConsulting")}</li>
-              <li className="text-sm text-muted-foreground">{t("investmentAdvisory")}</li>
+              <li className="text-sm text-muted-foreground">{t("Virtual Real Estate Showcases")}</li>
+              <li className="text-sm text-muted-foreground">{t("Data Analytics & Insights")}</li>
             </ul>
           </div>
 
