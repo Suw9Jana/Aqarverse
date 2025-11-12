@@ -151,7 +151,7 @@ const CompanyDashboard = () => {
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => navigate("/profile/edit?role=company")}>
               <User className="h-4 w-4 mr-2" />
-              Edit Profile
+              Profile
             </Button>
             <Button variant="ghost" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />

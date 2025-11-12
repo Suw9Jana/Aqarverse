@@ -20,19 +20,23 @@ const ENABLE_STORAGE = true; // اتركها true لتمكين الرفع إلى
 type Status = "draft" | "pending_review" | "approved" | "rejected";
 
 type PropertyDoc = {
-  title: string;
-  type: string;
-  city: string;
-  neighborhood: string;
-  description: string; // سيُولّد تلقائياً
-  price: number;
-  size: number;
+  title?: string;
+  type?: string;
+  city?: string;
+  neighborhood?: string;
+  description?: string; // سيُولّد تلقائياً عندما تتوفر البيانات
+  price?: number;
+  size?: number;
   ownerUid: string;
   status: Status;
 
   // مواصفات منظمة
   bedrooms?: number;
   bathrooms?: number;
+  kitchens?: number;
+  livingRooms?: number;
+
+  // توافقية قديمة (قد توجد في مستندات قديمة)
   hasKitchen?: boolean;
   hasLivingRoom?: boolean;
 
@@ -68,11 +72,11 @@ const AddEditProperty = () => {
     price: "" as string | number,
     size: "" as string | number,
 
-    // الحقول الجديدة
+    // الحقول المنظمة
     bedrooms: "" as string | number,
     bathrooms: "" as string | number,
-    hasKitchen: false,
-    hasLivingRoom: false,
+    kitchens: "" as string | number,
+    livingRooms: "" as string | number,
   });
 
   const [file, setFile] = useState<File | null>(null);      // 3D model
@@ -84,6 +88,11 @@ const AddEditProperty = () => {
 
   // تتبع حالة الوثيقة الحالية (للإرسال للمراجعة بعد الرفض/الدرافت)
   const [docStatus, setDocStatus] = useState<Status | null>(null);
+
+  // منع تغيّر قيم number بمجرّد تمرير العجلة أثناء الفوكس
+  const preventWheelChange = (e: React.WheelEvent<HTMLInputElement>) => {
+    (e.currentTarget as HTMLInputElement).blur();
+  };
 
   /* -------------------------- Load for Edit -------------------------- */
   useEffect(() => {
@@ -97,6 +106,21 @@ const AddEditProperty = () => {
           return;
         }
         const d = snap.data() as PropertyDoc;
+
+        // دعم توافقية: تحويل hasKitchen/hasLivingRoom إلى أعداد إن لم توجد الحقول الجديدة
+        const kitchensFromLegacy =
+          typeof d.kitchens === "number"
+            ? d.kitchens
+            : typeof d.hasKitchen === "boolean"
+            ? d.hasKitchen ? 1 : 0
+            : "";
+        const livingRoomsFromLegacy =
+          typeof d.livingRooms === "number"
+            ? d.livingRooms
+            : typeof d.hasLivingRoom === "boolean"
+            ? d.hasLivingRoom ? 1 : 0
+            : "";
+
         setForm({
           title: d.title || "",
           type: d.type || "",
@@ -104,11 +128,10 @@ const AddEditProperty = () => {
           neighborhood: d.neighborhood || "",
           price: d.price ?? "",
           size: d.size ?? "",
-
           bedrooms: d.bedrooms ?? "",
           bathrooms: d.bathrooms ?? "",
-          hasKitchen: !!d.hasKitchen,
-          hasLivingRoom: !!d.hasLivingRoom,
+          kitchens: kitchensFromLegacy as any,
+          livingRooms: livingRoomsFromLegacy as any,
         });
         setExistingFileName(d.fileName || "");
         setDocStatus(d.status ?? null);
@@ -122,33 +145,130 @@ const AddEditProperty = () => {
   }, [isEdit, id, navigate, toast]);
 
   /* --------------------------- Validation --------------------------- */
-  const validate = () => {
+  /**
+   * للتحقق عند الحفظ. إذا كان حفظ كمسودة forDraft=true، نرخي القيود:
+   * - عدم إلزام وجود الحقول، لكن لو وُجدت يجب أن تكون صحيحة.
+   * للإرسال: كل الحقول المطلوبة يجب أن تكون مُدخلة وصحيحة، ويجب وجود ملف نموذج ثلاثي الأبعاد
+   *   إمّا جديد (file) أو محفوظ سابقًا (existingFileName).
+   */
+  const validate = (forDraft: boolean) => {
     const e: Record<string, string> = {};
-    const title = form.title.trim().replace(/\s+/g, " ");
-    if (!title || title.length < 3 || title.length > 100) e.title = "Please enter a valid property title.";
+    const isEmpty = (v: any) => v === "" || v === null || v === undefined;
 
-    if (!form.type) e.type = "Please select a property type.";
+    const title = form.title.trim().replace(/\s+/g, " ");
+    if (!forDraft) {
+      if (!title || title.length < 3 || title.length > 100) e.title = "Please enter a valid property title.";
+    } else if (title && (title.length < 3 || title.length > 100)) {
+      e.title = "Please enter a valid property title.";
+    }
+
+    if (!forDraft) {
+      if (isEmpty(form.type)) e.type = "Please select a property type.";
+    }
 
     const city = form.city.trim();
-    if (!city || city.length < 2 || city.length > 100) e.city = "Please enter a valid city.";
+    if (!forDraft) {
+      if (!city || city.length < 2 || city.length > 100) e.city = "Please enter a valid city.";
+    } else if (city && (city.length < 2 || city.length > 100)) {
+      e.city = "Please enter a valid city.";
+    }
 
     const neighborhood = form.neighborhood.trim();
-    if (!neighborhood || neighborhood.length < 2 || neighborhood.length > 100)
+    if (!forDraft) {
+      if (!neighborhood || neighborhood.length < 2 || neighborhood.length > 100)
+        e.neighborhood = "Please enter a valid neighborhood.";
+    } else if (neighborhood && (neighborhood.length < 2 || neighborhood.length > 100)) {
       e.neighborhood = "Please enter a valid neighborhood.";
+    }
 
-    const priceNum = Number(form.price);
-    if (!Number.isFinite(priceNum) || priceNum <= 0) e.price = "Enter a valid positive price.";
+    // Price
+    if (!forDraft) {
+      if (isEmpty(form.price)) {
+        e.price = "Price is required.";
+      } else {
+        const priceNum = Number(form.price);
+        if (!Number.isFinite(priceNum) || priceNum <= 0) e.price = "Enter a valid positive price.";
+      }
+    } else if (!isEmpty(form.price)) {
+      const priceNum = Number(form.price);
+      if (!Number.isFinite(priceNum) || priceNum <= 0) e.price = "Enter a valid positive price.";
+    }
 
-    const sizeNum = Number(form.size);
-    if (!Number.isFinite(sizeNum) || sizeNum <= 0) e.size = "Enter a valid positive size.";
+    // Size
+    if (!forDraft) {
+      if (isEmpty(form.size)) {
+        e.size = "Area is required.";
+      } else {
+        const sizeNum = Number(form.size);
+        if (!Number.isFinite(sizeNum) || sizeNum <= 0) e.size = "Enter a valid positive size.";
+      }
+    } else if (!isEmpty(form.size)) {
+      const sizeNum = Number(form.size);
+      if (!Number.isFinite(sizeNum) || sizeNum <= 0) e.size = "Enter a valid positive size.";
+    }
 
-    // تحقق من القيم الجديدة
-    const bedroomsNum = Number(form.bedrooms);
-    const bathroomsNum = Number(form.bathrooms);
-    if (!Number.isInteger(bedroomsNum) || bedroomsNum < 0) e.bedrooms = "Bedrooms must be an integer ≥ 0.";
-    if (!Number.isInteger(bathroomsNum) || bathroomsNum < 0) e.bathrooms = "Bathrooms must be an integer ≥ 0.";
+    // Bedrooms
+    if (!forDraft) {
+      if (isEmpty(form.bedrooms)) {
+        e.bedrooms = "Bedrooms is required.";
+      } else {
+        const n = Number(form.bedrooms);
+        if (!Number.isInteger(n) || n < 0) e.bedrooms = "Bedrooms must be an integer ≥ 0.";
+      }
+    } else if (!isEmpty(form.bedrooms)) {
+      const n = Number(form.bedrooms);
+      if (!Number.isInteger(n) || n < 0) e.bedrooms = "Bedrooms must be an integer ≥ 0.";
+    }
 
-    if (!isEdit && !file) e.file = "3D model file is required";
+    // Bathrooms
+    if (!forDraft) {
+      if (isEmpty(form.bathrooms)) {
+        e.bathrooms = "Bathrooms is required.";
+      } else {
+        const n = Number(form.bathrooms);
+        if (!Number.isInteger(n) || n < 0) e.bathrooms = "Bathrooms must be an integer ≥ 0.";
+      }
+    } else if (!isEmpty(form.bathrooms)) {
+      const n = Number(form.bathrooms);
+      if (!Number.isInteger(n) || n < 0) e.bathrooms = "Bathrooms must be an integer ≥ 0.";
+    }
+
+    // Kitchens
+    if (!forDraft) {
+      if (isEmpty(form.kitchens)) {
+        e.kitchens = "Kitchens is required.";
+      } else {
+        const n = Number(form.kitchens);
+        if (!Number.isInteger(n) || n < 0) e.kitchens = "Kitchens must be an integer ≥ 0.";
+      }
+    } else if (!isEmpty(form.kitchens)) {
+      const n = Number(form.kitchens);
+      if (!Number.isInteger(n) || n < 0) e.kitchens = "Kitchens must be an integer ≥ 0.";
+    }
+
+    // Living Rooms
+    if (!forDraft) {
+      if (isEmpty(form.livingRooms)) {
+        e.livingRooms = "Living rooms is required.";
+      } else {
+        const n = Number(form.livingRooms);
+        if (!Number.isInteger(n) || n < 0) e.livingRooms = "Living rooms must be an integer ≥ 0.";
+      }
+    } else if (!isEmpty(form.livingRooms)) {
+      const n = Number(form.livingRooms);
+      if (!Number.isInteger(n) || n < 0) e.livingRooms = "Living rooms must be an integer ≥ 0.";
+    }
+
+    // 3D Model requirement on SUBMIT:
+    // - إنشاء جديد: يجب اختيار ملف.
+    // - تعديل: يجب وجود ملف جديد أو أن يكون هناك ملف محفوظ مسبقًا (existingFileName).
+    if (!forDraft) {
+      const hasExistingModel = Boolean(existingFileName && existingFileName.trim().length > 0);
+      if ((!isEdit && !file) || (isEdit && !file && !hasExistingModel)) {
+        e.file = "3D model file is required";
+      }
+    }
+    // تحقق النوع/الحجم إذا تم اختيار ملف
     if (file) {
       const valid = [".fbx", ".glb", ".gltf"].some((ext) => file.name.toLowerCase().endsWith(ext));
       const max = 50 * 1024 * 1024;
@@ -224,32 +344,46 @@ const AddEditProperty = () => {
     return { path, url };
   };
 
-  // توليد وصف تلقائي من الحقول المنظمة
+  const pluralize = (count: number, singular: string, plural: string) =>
+    `${count} ${count === 1 ? singular : plural}`;
+
+  // توليد وصف تلقائي من الحقول المنظمة (مرن: لا ينشئ وصفًا إن نقصت المعطيات)
   const buildAutoDescription = (opts: {
-    bedrooms: number;
-    bathrooms: number;
-    hasKitchen: boolean;
-    hasLivingRoom: boolean;
+    bedrooms?: number;
+    bathrooms?: number;
+    kitchens?: number;
+    livingRooms?: number;
   }) => {
     const parts: string[] = [];
+    const hasCore = typeof opts.bedrooms === "number" && typeof opts.bathrooms === "number";
 
-    // main sentence
-    const bed = `${opts.bedrooms} ${opts.bedrooms === 1 ? "bedroom" : "bedrooms"}`;
-    const bath = `${opts.bathrooms} ${opts.bathrooms === 1 ? "bathroom" : "bathrooms"}`;
-    parts.push(`Property with ${bed} and ${bath}`);
-
-    const facilities: string[] = [];
-    if (opts.hasKitchen) facilities.push("a kitchen");
-    if (opts.hasLivingRoom) facilities.push("a living room");
-    if (facilities.length) {
-      parts.push(`includes ${facilities.join(" and ")}`);
+    if (hasCore) {
+      const bed = pluralize(opts.bedrooms!, "bedroom", "bedrooms");
+      const bath = pluralize(opts.bathrooms!, "bathroom", "bathrooms");
+      parts.push(`Property with ${bed} and ${bath}`);
     }
 
-    return parts.join(", ") + ".";
+    const facilities: string[] = [];
+    if (typeof opts.kitchens === "number") facilities.push(pluralize(opts.kitchens, "kitchen", "kitchens"));
+    if (typeof opts.livingRooms === "number")
+      facilities.push(pluralize(opts.livingRooms, "living room", "living rooms"));
+    if (facilities.length) {
+      parts.push(`${hasCore ? "includes" : "Includes"} ${facilities.join(" and ")}`);
+    }
+
+    return parts.length ? parts.join(", ") + "." : "";
+  };
+
+  // مساعد لإضافة الحقول الموجودة فقط (للمسودات)
+  const addIfPresent = (payload: Record<string, any>, key: string, value: any, transform?: (v: any) => any) => {
+    const provided = value !== "" && value !== null && value !== undefined;
+    if (!provided) return;
+    payload[key] = transform ? transform(value) : value;
   };
 
   const save = async (asStatus: Status) => {
-    if (!validate()) return;
+    const forDraft = asStatus === "draft";
+    if (!validate(forDraft)) return;
 
     const user = auth.currentUser;
     if (!user) {
@@ -258,46 +392,65 @@ const AddEditProperty = () => {
       return;
     }
 
+    // للأرسال: نحول القيم إلى أرقام مع تحقق كامل
+    // للمسودة: سنضيف فقط ما هو مُدخل.
     const priceNum = Number(form.price);
     const sizeNum = Number(form.size);
     const bedroomsNum = Number(form.bedrooms);
     const bathroomsNum = Number(form.bathrooms);
+    const kitchensNum = Number(form.kitchens);
+    const livingRoomsNum = Number(form.livingRooms);
 
-    // وصف تلقائي
     const autoDescription = buildAutoDescription({
-      bedrooms: bedroomsNum,
-      bathrooms: bathroomsNum,
-      hasKitchen: form.hasKitchen,
-      hasLivingRoom: form.hasLivingRoom,
+      bedrooms: !forDraft || form.bedrooms !== "" ? bedroomsNum : undefined,
+      bathrooms: !forDraft || form.bathrooms !== "" ? bathroomsNum : undefined,
+      kitchens: !forDraft || form.kitchens !== "" ? kitchensNum : undefined,
+      livingRooms: !forDraft || form.livingRooms !== "" ? livingRoomsNum : undefined,
     });
-
-    const base = {
-      title: form.title.trim().replace(/\s+/g, " "),
-      type: form.type,
-      city: form.city.trim(),
-      neighborhood: form.neighborhood.trim(),
-      description: autoDescription, // ← نخزن الوصف المولّد هنا
-      price: priceNum,
-      size: sizeNum,
-
-      bedrooms: bedroomsNum,
-      bathrooms: bathroomsNum,
-      hasKitchen: form.hasKitchen,
-      hasLivingRoom: form.hasLivingRoom,
-    };
 
     try {
       if (!isEdit) {
         // -------- CREATE --------
-        const docData: PropertyDoc = {
-          ...base,
-          ...fileMetaForCreate(file),
-          ...imageMetaForCreate(image),
+        let docData: PropertyDoc = {
           ownerUid: user.uid,
           status: asStatus,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
+
+        if (forDraft) {
+          // أضف فقط ما تم إدخاله
+          addIfPresent(docData, "title", form.title.trim().replace(/\s+/g, " "));
+          addIfPresent(docData, "type", form.type);
+          addIfPresent(docData, "city", form.city.trim());
+          addIfPresent(docData, "neighborhood", form.neighborhood.trim());
+          if (autoDescription) docData.description = autoDescription;
+          addIfPresent(docData, "price", form.price, Number);
+          addIfPresent(docData, "size", form.size, Number);
+          addIfPresent(docData, "bedrooms", form.bedrooms, Number);
+          addIfPresent(docData, "bathrooms", form.bathrooms, Number);
+          addIfPresent(docData, "kitchens", form.kitchens, Number);
+          addIfPresent(docData, "livingRooms", form.livingRooms, Number);
+        } else {
+          // إرسال للمراجعة — كل الحقول الأساسية مطلوبة
+          docData = {
+            ...docData,
+            title: form.title.trim().replace(/\s+/g, " "),
+            type: form.type,
+            city: form.city.trim(),
+            neighborhood: form.neighborhood.trim(),
+            description: autoDescription, // وصف مولّد
+            price: priceNum,
+            size: sizeNum,
+            bedrooms: bedroomsNum,
+            bathrooms: bathroomsNum,
+            kitchens: kitchensNum,
+            livingRooms: livingRoomsNum,
+          };
+        }
+
+        // بيانات الملف/الصورة
+        Object.assign(docData, fileMetaForCreate(file), imageMetaForCreate(image));
 
         if (ENABLE_STORAGE) {
           if (file) {
@@ -328,16 +481,44 @@ const AddEditProperty = () => {
 
       // -------- EDIT --------
       if (!id) return;
-
       const refDoc = doc(db, "Property", id);
 
-      const payload: Record<string, any> = {
-        ...base,
+      let payload: Record<string, any> = {
         updatedAt: serverTimestamp(),
       };
 
-      if (asStatus === "pending_review" && (docStatus === "rejected" || docStatus === "draft")) {
-        payload.status = "pending_review";
+      if (forDraft) {
+        // تحديث مسودة: أضف فقط الحقول المدخلة واجعل الحالة "draft" دائمًا
+        payload.status = "draft";
+        addIfPresent(payload, "title", form.title.trim().replace(/\s+/g, " "));
+        addIfPresent(payload, "type", form.type);
+        addIfPresent(payload, "city", form.city.trim());
+        addIfPresent(payload, "neighborhood", form.neighborhood.trim());
+        if (autoDescription) payload.description = autoDescription;
+        addIfPresent(payload, "price", form.price, Number);
+        addIfPresent(payload, "size", form.size, Number);
+        addIfPresent(payload, "bedrooms", form.bedrooms, Number);
+        addIfPresent(payload, "bathrooms", form.bathrooms, Number);
+        addIfPresent(payload, "kitchens", form.kitchens, Number);
+        addIfPresent(payload, "livingRooms", form.livingRooms, Number);
+      } else {
+        // إرسال للمراجعة: كل شيء صارم
+        payload = {
+          ...payload,
+          title: form.title.trim().replace(/\s+/g, " "),
+          type: form.type,
+          city: form.city.trim(),
+          neighborhood: form.neighborhood.trim(),
+          description: autoDescription,
+          price: priceNum,
+          size: sizeNum,
+          bedrooms: bedroomsNum,
+          bathrooms: bathroomsNum,
+          kitchens: kitchensNum,
+          livingRooms: livingRoomsNum,
+          // تغيير الحالة إلى pending_review فقط عند الإرسال
+          status: "pending_review",
+        };
       }
 
       if (file) {
@@ -372,7 +553,7 @@ const AddEditProperty = () => {
 
       await updateDoc(refDoc, payload);
 
-      if (payload.status === "pending_review") setDocStatus("pending_review");
+      if (payload.status) setDocStatus(payload.status as Status);
 
       toast({ title: "Property updated", description: "Your changes have been saved." });
       navigate("/dashboard/company");
@@ -492,6 +673,8 @@ const AddEditProperty = () => {
                 <Input
                   id="price"
                   type="number"
+                  inputMode="decimal"
+                  onWheel={preventWheelChange}
                   value={form.price}
                   onChange={(e) => setForm({ ...form, price: e.target.value })}
                   className={errors.price ? "border-destructive" : ""}
@@ -499,10 +682,12 @@ const AddEditProperty = () => {
                 {errors.price && <p className="text-sm text-destructive mt-1">{errors.price}</p>}
               </div>
               <div>
-                <Label htmlFor="size">Area *</Label>
+                <Label htmlFor="size">Area (m²) *</Label>
                 <Input
                   id="size"
                   type="number"
+                  inputMode="decimal"
+                  onWheel={preventWheelChange}
                   value={form.size}
                   onChange={(e) => setForm({ ...form, size: e.target.value })}
                   className={errors.size ? "border-destructive" : ""}
@@ -520,6 +705,8 @@ const AddEditProperty = () => {
                   type="number"
                   min={0}
                   step={1}
+                  inputMode="numeric"
+                  onWheel={preventWheelChange}
                   value={form.bedrooms}
                   onChange={(e) => setForm({ ...form, bedrooms: e.target.value })}
                   className={errors.bedrooms ? "border-destructive" : ""}
@@ -533,6 +720,8 @@ const AddEditProperty = () => {
                   type="number"
                   min={0}
                   step={1}
+                  inputMode="numeric"
+                  onWheel={preventWheelChange}
                   value={form.bathrooms}
                   onChange={(e) => setForm({ ...form, bathrooms: e.target.value })}
                   className={errors.bathrooms ? "border-destructive" : ""}
@@ -542,23 +731,35 @@ const AddEditProperty = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex items-center gap-2">
-                <input
-                  id="hasKitchen"
-                  type="checkbox"
-                  checked={form.hasKitchen}
-                  onChange={(e) => setForm({ ...form, hasKitchen: e.target.checked })}
+              <div>
+                <Label htmlFor="kitchens">Kitchens *</Label>
+                <Input
+                  id="kitchens"
+                  type="number"
+                  min={0}
+                  step={1}
+                  inputMode="numeric"
+                  onWheel={preventWheelChange}
+                  value={form.kitchens}
+                  onChange={(e) => setForm({ ...form, kitchens: e.target.value })}
+                  className={errors.kitchens ? "border-destructive" : ""}
                 />
-                <Label htmlFor="hasKitchen">Includes Kitchen</Label>
+                {errors.kitchens && <p className="text-sm text-destructive mt-1">{errors.kitchens}</p>}
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  id="hasLivingRoom"
-                  type="checkbox"
-                  checked={form.hasLivingRoom}
-                  onChange={(e) => setForm({ ...form, hasLivingRoom: e.target.checked })}
+              <div>
+                <Label htmlFor="livingRooms">Living Rooms *</Label>
+                <Input
+                  id="livingRooms"
+                  type="number"
+                  min={0}
+                  step={1}
+                  inputMode="numeric"
+                  onWheel={preventWheelChange}
+                  value={form.livingRooms}
+                  onChange={(e) => setForm({ ...form, livingRooms: e.target.value })}
+                  className={errors.livingRooms ? "border-destructive" : ""}
                 />
-                <Label htmlFor="hasLivingRoom">Includes Living Room</Label>
+                {errors.livingRooms && <p className="text-sm text-destructive mt-1">{errors.livingRooms}</p>}
               </div>
             </div>
 

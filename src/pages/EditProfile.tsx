@@ -8,7 +8,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Save, Eye, EyeOff, Upload } from "lucide-react";
 import logo from "@/assets/aqarverse_logo.jpg";
 
-/* ⬇️ New import for the popup */
 import {
   Dialog,
   DialogTrigger,
@@ -19,6 +18,8 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 
 /* Firebase */
 import { auth, db, storage } from "@/lib/firebase";
@@ -31,6 +32,41 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { ref as sRef, uploadBytes, getDownloadURL } from "firebase/storage";
+
+/* ---------------- Phone options & helpers ---------------- */
+type CountryOption = {
+  code: string;
+  label: string;
+  nationalMax: number;
+  requireLeading5?: boolean;
+  flag: string;
+};
+
+const COUNTRY_OPTIONS: CountryOption[] = [
+  { code: "+966", label: "Saudi Arabia", nationalMax: 9, requireLeading5: true, flag: "🇸🇦" },
+  { code: "+971", label: "United Arab Emirates", nationalMax: 9, flag: "🇦🇪" },
+  { code: "+965", label: "Kuwait", nationalMax: 8, flag: "🇰🇼" },
+  { code: "+974", label: "Qatar", nationalMax: 8, flag: "🇶🇦" },
+  { code: "+973", label: "Bahrain", nationalMax: 8, flag: "🇧🇭" },
+  { code: "+20",  label: "Egypt", nationalMax: 10, flag: "🇪🇬" },
+];
+
+const getCountry = (code: string) =>
+  COUNTRY_OPTIONS.find((c) => c.code === code) || COUNTRY_OPTIONS[0];
+
+function splitE164(phone?: string): { phoneCode: string; phoneNational: string } {
+  if (!phone) return { phoneCode: "+966", phoneNational: "" };
+  const m = phone.match(/^\+(\d+)(\d+)$/);
+  if (!m) return { phoneCode: "+966", phoneNational: "" };
+  const codeWithPlus = `+${m[1]}`;
+  const option = COUNTRY_OPTIONS.find((c) => c.code === codeWithPlus);
+  if (!option) {
+    // default to KSA, keep digits as national
+    return { phoneCode: "+966", phoneNational: m[2] || "" };
+  }
+  return { phoneCode: option.code, phoneNational: (m[2] || "").slice(0, option.nationalMax) };
+}
+/* --------------------------------------------------------- */
 
 type Role = "customer" | "company";
 
@@ -47,7 +83,10 @@ const EditProfile = () => {
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
-    phone: "",
+    // phone split:
+    phoneCode: "+966",
+    phoneNational: "",
+
     location: "",
     licenseNumber: "",
     oldPassword: "",
@@ -55,10 +94,10 @@ const EditProfile = () => {
     confirmPassword: "",
   });
 
-  // 👇 صورة الشركة (اختيارية)
+  // Company photo (optional)
   const [companyPhotoFile, setCompanyPhotoFile] = useState<File | null>(null);
-  const [existingPhotoUrl, setExistingPhotoUrl] = useState<string>(""); // من Firestore لو موجود
-  const [photoPreview, setPhotoPreview] = useState<string>(""); // للعرض الفوري
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState<string>("");
+  const [photoPreview, setPhotoPreview] = useState<string>("");
   const [uploadingPhoto, setUploadingPhoto] = useState<boolean>(false);
 
   const [showOld, setShowOld] = useState(false);
@@ -66,7 +105,7 @@ const EditProfile = () => {
   const [showConfirm, setShowConfirm] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [pwOpen, setPwOpen] = useState(false); // ⬅️ controls the popup
+  const [pwOpen, setPwOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -83,11 +122,13 @@ const EditProfile = () => {
         if (custSnap.exists()) {
           const d = custSnap.data() as any;
           setRole("customer");
+          const split = splitE164(d?.phone || user.phoneNumber || "");
           setFormData((prev) => ({
             ...prev,
             fullName: d?.name || "",
             email: user.email || d?.email || "",
-            phone: d?.phone || "",
+            phoneCode: split.phoneCode,
+            phoneNational: split.phoneNational,
           }));
           setInitialEmail(user.email || d?.email || "");
           setLoading(false);
@@ -98,15 +139,17 @@ const EditProfile = () => {
         if (compSnap.exists()) {
           const d = compSnap.data() as any;
           setRole("company");
+          const split = splitE164(d?.phone || user.phoneNumber || "");
           setFormData((prev) => ({
             ...prev,
             fullName: d?.companyName || "",
             email: user.email || d?.email || "",
-            phone: d?.phone || "",
+            phoneCode: split.phoneCode,
+            phoneNational: split.phoneNational,
             location: d?.Location || d?.location || "",
             licenseNumber: d?.licenseNumber || "",
           }));
-          setExistingPhotoUrl(d?.photoUrl || d?.photoURL || ""); // حفظ رابط الصورة الحالية إن وُجد
+          setExistingPhotoUrl(d?.photoUrl || d?.photoURL || "");
           setPhotoPreview(d?.photoUrl || d?.photoURL || "");
           setInitialEmail(user.email || d?.email || "");
           setLoading(false);
@@ -122,6 +165,7 @@ const EditProfile = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* ---------------- Validation ---------------- */
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     const trimmedName = formData.fullName.trim().replace(/\s+/g, " ");
@@ -133,10 +177,28 @@ const EditProfile = () => {
     if (!formData.email.trim() || !emailRegex.test(formData.email)) {
       newErrors.email = "Please enter a valid email address.";
     }
-    const phoneDigits = formData.phone.replace(/\D/g, "");
-    if (!formData.phone.trim() || phoneDigits.length < 7 || phoneDigits.length > 15) {
+
+    // Phone rules
+    const country = getCountry(formData.phoneCode);
+    const nationalDigits = formData.phoneNational.replace(/\D/g, "");
+    if (!nationalDigits) {
       newErrors.phone = "Please enter a valid phone number.";
+    } else {
+      if (nationalDigits.length > country.nationalMax) {
+        newErrors.phone = `Phone number too long. Max ${country.nationalMax} digits.`;
+      }
+      if (country.requireLeading5 && !nationalDigits.startsWith("5")) {
+        newErrors.phone = "For +966, start with 5 (not 05).";
+      }
+      if (/^0/.test(nationalDigits)) {
+        newErrors.phone = "Do not include a leading 0 in the national number.";
+      }
+      const min = country.requireLeading5 ? 9 : Math.min(country.nationalMax, 6);
+      if (nationalDigits.length < min) {
+        newErrors.phone = "Please enter a valid phone number.";
+      }
     }
+
     if (role === "company") {
       if (!formData.location.trim()) newErrors.location = "Please enter your location.";
       const licenseDigits = formData.licenseNumber.replace(/\D/g, "");
@@ -144,6 +206,7 @@ const EditProfile = () => {
         newErrors.licenseNumber = "Please enter your license number.";
       }
     }
+
     const wantsPasswordChange = Boolean(formData.oldPassword || formData.password || formData.confirmPassword);
     if (wantsPasswordChange) {
       if (!formData.oldPassword) newErrors.oldPassword = "Current password is required to change your password.";
@@ -152,8 +215,7 @@ const EditProfile = () => {
       } else {
         const pwRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#]).{8,}$/;
         if (!pwRegex.test(formData.password)) {
-          newErrors.password =
-            "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.";
+          newErrors.password = "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.";
         }
       }
       if (!formData.confirmPassword) newErrors.confirmPassword = "Please confirm your new password.";
@@ -161,7 +223,6 @@ const EditProfile = () => {
         newErrors.confirmPassword = "Passwords do not match.";
     }
 
-    // الصورة اختيارية؛ لو انرفعت نتحقق من النوع والحجم
     if (companyPhotoFile) {
       const allowed = ["image/png", "image/jpeg", "image/webp"];
       if (!allowed.includes(companyPhotoFile.type)) newErrors.companyPhoto = "Image must be PNG/JPEG/WEBP.";
@@ -172,6 +233,7 @@ const EditProfile = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  /* ---------------- Submit ---------------- */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -197,42 +259,43 @@ const EditProfile = () => {
       if (emailChanged) await updateEmail(user, formData.email.trim());
       if (formData.password) await updatePassword(user, formData.password);
 
-      // تجهيز بيانات التحديث العامة
+      // Build E.164
+      const country = getCountry(formData.phoneCode);
+      const nationalDigits = formData.phoneNational.replace(/\D/g, "");
+      const phoneE164 = `${country.code}${nationalDigits}`;
+
       if (role === "customer") {
         await updateDoc(doc(db, "Customer", uid), {
           name: formData.fullName.trim(),
           email: formData.email.trim(),
-          phone: formData.phone.trim(),
+          phone: phoneE164,
           updatedAt: serverTimestamp(),
         });
       } else {
-        // ⬇️ رفع صورة الشركة إن وُجدت (الخطوة التي طلبتها)
-        let photoUrlToSave = existingPhotoUrl; // نُبقي القديمة إن ما رفع صورة جديدة
+        let photoUrlToSave = existingPhotoUrl;
         if (companyPhotoFile) {
           setUploadingPhoto(true);
           const safeName = companyPhotoFile.name.replace(/\s+/g, "_");
           const path = `company-photos/${uid}/${Date.now()}_${safeName}`;
           const r = sRef(storage, path);
-          await uploadBytes(r, companyPhotoFile, {
-            contentType: companyPhotoFile.type || undefined,
-          });
-          photoUrlToSave = await getDownloadURL(r); // ✅ الرابط النهائي
+          await uploadBytes(r, companyPhotoFile, { contentType: companyPhotoFile.type || undefined });
+          photoUrlToSave = await getDownloadURL(r);
           setUploadingPhoto(false);
         }
 
         await updateDoc(doc(db, "company", uid), {
           companyName: formData.fullName.trim(),
           email: formData.email.trim(),
-          phone: formData.phone.trim(),
+          phone: phoneE164,
           Location: formData.location.trim(),
           licenseNumber: formData.licenseNumber.trim(),
-          ...(photoUrlToSave ? { photoUrl: photoUrlToSave } : {}), // نحفظ الرابط إن وُجد
+          ...(photoUrlToSave ? { photoUrl: photoUrlToSave } : {}),
           updatedAt: serverTimestamp(),
         });
       }
 
       toast({ title: "Profile Updated", description: "Your profile has been successfully updated." });
-      setPwOpen(false); // close the popup if it was open
+      setPwOpen(false);
       navigate(role === "company" ? "/dashboard/company" : "/dashboard/customer");
     } catch (err: any) {
       const message =
@@ -250,6 +313,7 @@ const EditProfile = () => {
     }
   };
 
+  /* ---------------- Handlers ---------------- */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -264,6 +328,19 @@ const EditProfile = () => {
     setErrors((prev) => ({ ...prev, companyPhoto: "" }));
   };
 
+  const onChangePhoneCode = (val: string) => {
+    setFormData((p) => ({ ...p, phoneCode: val }));
+    if (errors.phone) setErrors((e) => ({ ...e, phone: "" }));
+  };
+
+  const onChangePhoneNational = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digitsOnly = e.target.value.replace(/\D/g, "");
+    const max = getCountry(formData.phoneCode).nationalMax;
+    setFormData((p) => ({ ...p, phoneNational: digitsOnly.slice(0, max) }));
+    if (errors.phone) setErrors((er) => ({ ...er, phone: "" }));
+  };
+
+  /* ---------------- UI ---------------- */
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -290,10 +367,7 @@ const EditProfile = () => {
             <img src={logo} alt="AqarVerse" className="h-10 w-10 object-contain" />
             <span className="text-xl font-bold text-primary">AqarVerse</span>
           </div>
-          <Button
-            variant="ghost"
-            onClick={() => navigate(role === "company" ? "/dashboard/company" : "/dashboard/customer")}
-          >
+          <Button variant="ghost" onClick={() => navigate(role === "company" ? "/dashboard/company" : "/dashboard/customer")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
@@ -308,7 +382,6 @@ const EditProfile = () => {
           </CardHeader>
           <CardContent>
             <form id="editProfileForm" onSubmit={handleSubmit} className="space-y-6">
-              {/* Name */}
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name *</Label>
                 <Input
@@ -323,7 +396,6 @@ const EditProfile = () => {
                 {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
               </div>
 
-              {/* Email (locked) */}
               <div className="space-y-2">
                 <Label htmlFor="email">Email *</Label>
                 <Input
@@ -343,22 +415,51 @@ const EditProfile = () => {
                 {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
               </div>
 
-              {/* Phone */}
+              {/* Phone (code + national) */}
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number *</Label>
-                <Input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  placeholder="+966 50 123 4567"
-                  className={errors.phone ? "border-destructive" : ""}
-                />
+                <Label>Phone Number *</Label>
+                <div className="flex gap-2 items-center">
+                  <Select value={formData.phoneCode} onValueChange={onChangePhoneCode}>
+                    <SelectTrigger className="w-40">
+                      <div className="flex items-center gap-2">
+                        <span>{getCountry(formData.phoneCode).flag}</span>
+                        <span className="font-medium">{getCountry(formData.phoneCode).code}</span>
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COUNTRY_OPTIONS.map((c) => (
+                        <SelectItem key={c.code} value={c.code}>
+                          <span className="inline-flex items-center gap-2">
+                            <span>{c.flag}</span>
+                            <span className="font-medium">{c.code}</span>
+                            <span className="text-muted-foreground ml-2 hidden md:inline">{c.label}</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Input
+                    id="phoneNational"
+                    name="phoneNational"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="\d*"
+                    value={formData.phoneNational}
+                    onChange={onChangePhoneNational}
+                    placeholder={getCountry(formData.phoneCode).code === "+966" ? "5XXXXXXXX" : "national number"}
+                    className={`${errors.phone ? "border-destructive" : ""} flex-1`}
+                    maxLength={getCountry(formData.phoneCode).nationalMax}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {getCountry(formData.phoneCode).code === "+966"
+                    ? "Start with 5 (not 05). 9 digits total."
+                    : `Up to ${getCountry(formData.phoneCode).nationalMax} digits.`}
+                </p>
                 {errors.phone && <p className="text-sm text-destructive">{errors.phone}</p>}
               </div>
 
-              {/* Company-only fields */}
               {role === "company" && (
                 <>
                   <div className="space-y-2">
@@ -398,25 +499,13 @@ const EditProfile = () => {
                         <p className="text-sm text-muted-foreground">Click to upload or drag and drop</p>
                         {photoPreview && (
                           <div className="mt-3 flex justify-center">
-                            <img
-                              src={photoPreview}
-                              alt="Preview"
-                              className="h-20 w-20 rounded object-cover border"
-                            />
+                            <img src={photoPreview} alt="Preview" className="h-20 w-20 rounded object-cover border" />
                           </div>
                         )}
-                        {uploadingPhoto && (
-                          <p className="text-xs text-muted-foreground mt-2">Uploading…</p>
-                        )}
+                        {uploadingPhoto && <p className="text-xs text-muted-foreground mt-2">Uploading…</p>}
                       </div>
                     </label>
-                    <input
-                      id="companyPhoto"
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={onPickCompanyPhoto}
-                      className="hidden"
-                    />
+                    <input id="companyPhoto" type="file" accept="image/png,image/jpeg,image/webp" onChange={onPickCompanyPhoto} className="hidden" />
                     {errors.companyPhoto && <p className="text-sm text-destructive">{errors.companyPhoto}</p>}
                   </div>
                 </>
@@ -435,7 +524,6 @@ const EditProfile = () => {
                     </DialogHeader>
 
                     <div className="space-y-4 py-2">
-                      {/* Current */}
                       <div className="space-y-2">
                         <Label htmlFor="oldPassword">Current Password</Label>
                         <div className="relative">
@@ -448,19 +536,13 @@ const EditProfile = () => {
                             placeholder="Required if changing password"
                             className={`${errors.oldPassword ? "border-destructive" : ""} pr-10`}
                           />
-                          <button
-                            type="button"
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                            onClick={() => setShowOld((s) => !s)}
-                            aria-label={showOld ? "Hide password" : "Show password"}
-                          >
+                          <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowOld((s) => !s)} aria-label={showOld ? "Hide password" : "Show password"}>
                             {showOld ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
                         {errors.oldPassword && <p className="text-sm text-destructive">{errors.oldPassword}</p>}
                       </div>
 
-                      {/* New */}
                       <div className="space-y-2">
                         <Label htmlFor="password">New Password</Label>
                         <div className="relative">
@@ -474,19 +556,13 @@ const EditProfile = () => {
                             className={`${errors.password ? "border-destructive" : ""} pr-10`}
                             autoComplete="new-password"
                           />
-                          <button
-                            type="button"
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                            onClick={() => setShowNew((s) => !s)}
-                            aria-label={showNew ? "Hide password" : "Show password"}
-                          >
+                          <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowNew((s) => !s)} aria-label={showNew ? "Hide password" : "Show password"}>
                             {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
                         {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
                       </div>
 
-                      {/* Confirm */}
                       <div className="space-y-2">
                         <Label htmlFor="confirmPassword">Confirm New Password</Label>
                         <div className="relative">
@@ -500,18 +576,11 @@ const EditProfile = () => {
                             className={`${errors.confirmPassword ? "border-destructive" : ""} pr-10`}
                             autoComplete="new-password"
                           />
-                          <button
-                            type="button"
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                            onClick={() => setShowConfirm((s) => !s)}
-                            aria-label={showConfirm ? "Hide password" : "Show password"}
-                          >
+                          <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowConfirm((s) => !s)} aria-label={showConfirm ? "Hide password" : "Show password"}>
                             {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
-                        {errors.confirmPassword && (
-                          <p className="text-sm text-destructive">{errors.confirmPassword}</p>
-                        )}
+                        {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
                       </div>
                     </div>
 

@@ -3,21 +3,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogOut, User, Heart, MapPin, Ruler, DollarSign, Building } from "lucide-react";
+import { LogOut, User, Heart, MapPin, Ruler, Building } from "lucide-react"; // removed DollarSign
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/aqarverse_logo.jpg";
+import sarMask from "@/assets/Saudi_Riyal_icon.png"; // ⬅️ your icon (PNG works great as a mask)
 
 /* Firebase */
 import { auth, db, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import {
-  collection,
-  getDocs,
-  onSnapshot,
-  query,
-  where,
-  documentId,
-} from "firebase/firestore";
+import { collection, getDocs, onSnapshot, query, where, documentId } from "firebase/firestore";
 import { getDownloadURL, ref as sRef } from "firebase/storage";
 
 type Status = "draft" | "pending_review" | "approved" | "rejected";
@@ -35,14 +29,36 @@ type PropertyDoc = {
   ownerUid: string;
   companyName?: string;
 
-  // ⬇️ صور
-  imageUrl?: string;    // رابط HTTPS جاهز
-  coverUrl?: string;    // احتمال تسمية أخرى
-  photoUrl?: string;    // احتمال تسمية أخرى
-  coverPath?: string;   // مسار داخل Storage
-  photoPath?: string;   // مسار داخل Storage
-  images?: any[];       // مصفوفة صور (روابط أو مسارات)
+  imageUrl?: string;
+  coverUrl?: string;
+  photoUrl?: string;
+  coverPath?: string;
+  photoPath?: string;
+  images?: any[];
 };
+
+/** Saudi Riyal icon that tints to currentColor using CSS mask (works with PNG or SVG). */
+const SARIcon = ({ className }: { className?: string }) => {
+  const baseStyle: React.CSSProperties = {
+    width: "1rem",
+    height: "1rem",
+    backgroundColor: "currentColor",
+    WebkitMaskImage: `url(${sarMask})`,
+    maskImage: `url(${sarMask})`,
+    WebkitMaskRepeat: "no-repeat",
+    maskRepeat: "no-repeat",
+    WebkitMaskPosition: "center",
+    maskPosition: "center",
+    WebkitMaskSize: "contain",
+    maskSize: "contain",
+    display: "inline-block",
+  };
+  return <span className={className} style={baseStyle} aria-hidden="true" />;
+};
+
+/* ---------- formatters ---------- */
+const fmtArea = (v: number) => `${Number(v).toLocaleString("en-US")} m²`;
+const fmtSAR = (v: number) => `${Number(v).toLocaleString("en-SA", { maximumFractionDigits: 0 })} SAR`;
 
 export default function CustomerDashboard() {
   const navigate = useNavigate();
@@ -66,7 +82,7 @@ export default function CustomerDashboard() {
   const [loadingProps, setLoadingProps] = useState(false);
   const [properties, setProperties] = useState<PropertyDoc[]>([]);
 
-  // 1) استمع للمفضلة
+  // 1) listen to favorites
   useEffect(() => {
     if (!authReady) return;
     if (!uid) {
@@ -88,10 +104,7 @@ export default function CustomerDashboard() {
         setLoadingFavIds(false);
         toast({
           title: "Failed to load favorites",
-          description:
-            err.code === "permission-denied"
-              ? "Missing or insufficient permissions."
-              : err.message,
+          description: err.code === "permission-denied" ? "Missing or insufficient permissions." : err.message,
           variant: "destructive",
         });
       }
@@ -99,48 +112,38 @@ export default function CustomerDashboard() {
     return () => unsub();
   }, [authReady, uid, toast]);
 
-  // helper: التقط أول رابط HTTPS إن وُجد
   const pickHttps = (v: any): string | undefined => {
     if (!v) return undefined;
     if (typeof v === "string" && v.startsWith("http")) return v;
     if (Array.isArray(v)) {
       const found = v.find((x) => typeof x === "string" && x.startsWith("http"));
       if (found) return found;
-      // أحيانًا عنصر المصفوفة يكون كائن { url / path }
-      const fromObj = v.find(
-        (x) => typeof x?.url === "string" && x.url.startsWith("http")
-      );
+      const fromObj = v.find((x) => typeof x?.url === "string" && x.url.startsWith("http"));
       if (fromObj) return fromObj.url;
     }
     if (typeof v === "object") {
       const keys = ["imageUrl", "url", "downloadUrl", "src"];
       for (const k of keys) {
-        const val = v[k];
+        const val = (v as any)[k];
         if (typeof val === "string" && val.startsWith("http")) return val;
       }
     }
     return undefined;
   };
 
-  // helper: التقط أول مسار داخل Storage
   const pickStoragePath = (data: any): string | undefined => {
     const candidates = [
       data.coverPath,
       data.photoPath,
       data.mainImagePath,
       data.imagePath,
-      // لو images مصفوفة مسارات/كائنات
-      Array.isArray(data.images) && typeof data.images[0] === "string"
-        ? data.images[0]
-        : undefined,
-      Array.isArray(data.images) && typeof data.images[0]?.path === "string"
-        ? data.images[0].path
-        : undefined,
+      Array.isArray(data.images) && typeof data.images[0] === "string" ? data.images[0] : undefined,
+      Array.isArray(data.images) && typeof data.images[0]?.path === "string" ? data.images[0].path : undefined,
     ].filter(Boolean) as string[];
     return candidates[0];
   };
 
-  // 2) اجلب وثائق Property + جهز رابط الصورة
+  // 2) fetch Property docs + resolve image URL
   useEffect(() => {
     const run = async () => {
       if (favIds.length === 0) {
@@ -159,21 +162,19 @@ export default function CustomerDashboard() {
           for (const d of snap.docs) {
             const data = d.data() as any;
 
-            // 1) جرّب أي رابط HTTPS مباشر
             let imgUrl =
               pickHttps(data.imageUrl) ||
               pickHttps(data.coverUrl) ||
               pickHttps(data.photoUrl) ||
               pickHttps(data.images);
 
-            // 2) لو ما فيه رابط، جرّب مسار Storage
             if (!imgUrl) {
               const path = pickStoragePath(data);
               if (path) {
                 try {
                   imgUrl = await getDownloadURL(sRef(storage, path));
                 } catch {
-                  // تجاهل الخطأ: نعرض كارد بدون صورة
+                  /* ignore */
                 }
               }
             }
@@ -222,7 +223,7 @@ export default function CustomerDashboard() {
               className="hover:bg-primary/10"
             >
               <User className="h-4 w-4 mr-2" />
-              Edit Profile
+              Profile
             </Button>
             <Button variant="ghost" onClick={handleLogout} className="hover:bg-primary/10">
               <LogOut className="h-4 w-4 mr-2" />
@@ -276,7 +277,7 @@ export default function CustomerDashboard() {
                 className="group overflow-hidden hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 border-primary/20 bg-card/80 backdrop-blur-sm hover:-translate-y-2"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
-                {/* صورة الغلاف */}
+                {/* cover */}
                 <div className="relative w-full aspect-[16/10] overflow-hidden">
                   {property.imageUrl ? (
                     <img
@@ -326,16 +327,19 @@ export default function CustomerDashboard() {
                         {property.neighborhood ? ` — ${property.neighborhood}` : ""}
                       </span>
                     </div>
-                    {property.size && (
+
+                    {typeof property.size === "number" && (
                       <div className="flex items-center gap-3 text-sm p-2 rounded-lg bg-primary/5">
                         <Ruler className="h-4 w-4 text-primary flex-shrink-0" />
-                        <span className="text-foreground">{property.size}</span>
+                        <span className="text-foreground">{fmtArea(property.size)}</span>
                       </div>
                     )}
-                    {property.price && (
+
+                    {typeof property.price === "number" && (
                       <div className="flex items-center gap-3 text-sm p-2 rounded-lg bg-primary/5">
-                        <DollarSign className="h-4 w-4 text-primary flex-shrink-0" />
-                        <span className="text-foreground font-semibold">{property.price}</span>
+                        <SARIcon className="text-primary flex-shrink-0" />
+                        <span className="text-foreground font-semibold">{fmtSAR(property.price)}</span>
+                        {/* ↑ number first, then 'SAR' to match your preference */}
                       </div>
                     )}
                   </div>

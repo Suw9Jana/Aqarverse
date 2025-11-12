@@ -1,4 +1,3 @@
-// src/pages/Register.tsx 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
@@ -9,11 +8,35 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Building2, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { UserRole } from "@/types";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 
 /* Firebase */
 import { auth, db } from "@/lib/firebase";
 import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
+
+/* ---------------- Phone options & helpers ---------------- */
+type CountryOption = {
+  code: string;           // dialing code
+  label: string;          // country name
+  nationalMax: number;    // max digits for national portion
+  requireLeading5?: boolean; // KSA rule
+  flag: string;           // emoji (swap to SVG if you prefer)
+};
+
+const COUNTRY_OPTIONS: CountryOption[] = [
+  { code: "+966", label: "Saudi Arabia", nationalMax: 9, requireLeading5: true, flag: "🇸🇦" },
+  { code: "+971", label: "United Arab Emirates", nationalMax: 9, flag: "🇦🇪" },
+  { code: "+965", label: "Kuwait", nationalMax: 8, flag: "🇰🇼" },
+  { code: "+974", label: "Qatar", nationalMax: 8, flag: "🇶🇦" },
+  { code: "+973", label: "Bahrain", nationalMax: 8, flag: "🇧🇭" },
+  { code: "+20",  label: "Egypt", nationalMax: 10, flag: "🇪🇬" },
+];
+
+const getCountry = (code: string) =>
+  COUNTRY_OPTIONS.find((c) => c.code === code) || COUNTRY_OPTIONS[0];
+
+/* --------------------------------------------------------- */
 
 const Register = () => {
   const navigate = useNavigate();
@@ -22,8 +45,11 @@ const Register = () => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    confirmEmail: "", // ✅ added
-    phone: "",
+    confirmEmail: "",
+    // phone is now split:
+    phoneCode: "+966",
+    phoneNational: "",
+
     location: "",
     licenseNumber: "",
     password: "",
@@ -31,75 +57,65 @@ const Register = () => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  /* ---------------- Validation ---------------- */
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    // Full Name validation
+    // Full Name
     const trimmedName = formData.name.trim().replace(/\s+/g, " ");
-    if (!trimmedName) {
-      newErrors.name = "Please enter your full name (first and last name).";
-    } else if (trimmedName.split(" ").length < 2) {
-      newErrors.name = "Please enter your full name (first and last name).";
-    } else if (!/^[a-zA-Z\s\-']+$/.test(trimmedName)) {
+    if (!trimmedName || trimmedName.split(" ").length < 2 || !/^[a-zA-Z\s\-']+$/.test(trimmedName)) {
       newErrors.name = "Please enter your full name (first and last name).";
     }
 
-    // Email validation
-    if (!formData.email.trim()) {
-      newErrors.email = "Please enter a valid email address.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    // Email & Confirm
+    if (!formData.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Please enter a valid email address.";
     }
-
-    // ✅ Confirm Email validation (added)
     if (!formData.confirmEmail.trim()) {
       newErrors.confirmEmail = "Please re-enter your email.";
     } else if (formData.email.trim().toLowerCase() !== formData.confirmEmail.trim().toLowerCase()) {
       newErrors.confirmEmail = "Emails do not match.";
     }
 
-    // Phone validation
-    const phoneDigits = formData.phone.replace(/[^\d]/g, "");
-    if (!formData.phone.trim()) {
+    // Phone
+    const country = getCountry(formData.phoneCode);
+    const nationalDigits = formData.phoneNational.replace(/\D/g, "");
+    if (!nationalDigits) {
       newErrors.phone = "Please enter a valid phone number.";
-    } else if (phoneDigits.length < 7 || phoneDigits.length > 15) {
-      newErrors.phone = "Please enter a valid phone number.";
+    } else {
+      if (nationalDigits.length > country.nationalMax) {
+        newErrors.phone = `Phone number too long. Max ${country.nationalMax} digits.`;
+      }
+      if (country.requireLeading5 && !nationalDigits.startsWith("5")) {
+        newErrors.phone = "For +966, start with 5 (not 05).";
+      }
+      // Also disallow a leading 0 in national part for all countries
+      if (/^0/.test(nationalDigits)) {
+        newErrors.phone = "Do not include a leading 0 in the national number.";
+      }
+      // Minimal sanity: at least 6 digits for non-KSA, 9 for KSA
+      const min = country.requireLeading5 ? 9 : Math.min(country.nationalMax, 6);
+      if (nationalDigits.length < min) {
+        newErrors.phone = "Please enter a valid phone number.";
+      }
     }
 
-    // Company-specific validations
+    // Company fields
     if (selectedRole === "company") {
-      if (!formData.location.trim()) {
-        newErrors.location = "Location is required.";
-      } else if (formData.location.trim().length < 2 || formData.location.trim().length > 100) {
-        newErrors.location = "Location must be between 2 and 100 characters.";
-      } else if (!/^[a-zA-Z0-9\s,\-]+$/.test(formData.location)) {
-        newErrors.location = "Location contains invalid characters.";
+      if (!formData.location.trim() || formData.location.trim().length < 2 || formData.location.trim().length > 100 || !/^[a-zA-Z0-9\s,\-]+$/.test(formData.location)) {
+        newErrors.location = "Location must be 2–100 valid characters.";
       }
-
       const licenseDigits = formData.licenseNumber.replace(/[^\d]/g, "");
-      if (!formData.licenseNumber.trim()) {
-        newErrors.licenseNumber = "License number is required.";
-      } else if (licenseDigits.length < 5 || licenseDigits.length > 15) {
+      if (!formData.licenseNumber.trim() || licenseDigits.length < 5 || licenseDigits.length > 15) {
         newErrors.licenseNumber = "License number must be 5 to 15 digits.";
       }
     }
 
-    // Password validation
-    if (!formData.password) {
-      newErrors.password =
-        "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.";
-    } else if (formData.password.length < 8) {
-      newErrors.password =
-        "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.";
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]/.test(formData.password)) {
-      newErrors.password =
-        "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.";
+    // Password
+    if (!formData.password || formData.password.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])/.test(formData.password)) {
+      newErrors.password = "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.";
     }
-
-    // Confirm Password validation
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = "Passwords do not match.";
-    } else if (formData.password !== formData.confirmPassword) {
+    if (!formData.confirmPassword || formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match.";
     }
 
@@ -107,41 +123,35 @@ const Register = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  /* ---------------- Submit ---------------- */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    // Mock check preserved
+    // Prevent duplicates (mock kept)
     if (formData.email === "existing@example.com") {
-      toast({
-        title: "Registration Failed",
-        description: "This account already exists.",
-        variant: "destructive",
-      });
+      toast({ title: "Registration Failed", description: "This account already exists.", variant: "destructive" });
       return;
     }
 
     try {
-      // 1) Create Auth user
       const cred = await createUserWithEmailAndPassword(auth, formData.email.trim(), formData.password);
-
-      // 2) Send email verification (🔑 REQUIRED FOR YOUR FLOW)
       await sendEmailVerification(cred.user);
+      try { await updateProfile(cred.user, { displayName: formData.name.trim() }); } catch {}
 
-      // 3) Optional: set display name
-      try {
-        await updateProfile(cred.user, { displayName: formData.name.trim() });
-      } catch {}
-
-      // 4) Create Firestore profile with doc ID = uid (matches rules)
       const uid = cred.user.uid;
+
+      // Build E.164 phone
+      const country = getCountry(formData.phoneCode);
+      const nationalDigits = formData.phoneNational.replace(/\D/g, "");
+      const phoneE164 = `${country.code}${nationalDigits}`;
 
       if (selectedRole === "company") {
         await setDoc(doc(db, "company", uid), {
           companyId: `C${uid.slice(0, 3).toUpperCase()}`,
           companyName: formData.name.trim(),
           email: formData.email.trim(),
-          phone: formData.phone.trim(),
+          phone: phoneE164,
           licenseNumber: formData.licenseNumber.trim(),
           Location: formData.location.trim(),
           role: "company",
@@ -152,7 +162,7 @@ const Register = () => {
           customerID: `Cu${uid.slice(0, 3).toUpperCase()}`,
           name: formData.name.trim(),
           email: formData.email.trim(),
-          phone: formData.phone.trim(),
+          phone: phoneE164,
           role: "customer",
           uid,
         });
@@ -162,8 +172,6 @@ const Register = () => {
         title: "Registration Successful",
         description: "We sent a verification link to your email. Please verify before logging in.",
       });
-
-      // 🔁 Send user to Login so they can verify then sign in
       navigate("/login");
     } catch (err: any) {
       const message =
@@ -174,11 +182,24 @@ const Register = () => {
           : err?.code === "auth/weak-password"
           ? "Please choose a stronger password."
           : err?.message || "Registration failed. Please try again.";
-
       toast({ title: "Registration Failed", description: message, variant: "destructive" });
     }
   };
 
+  /* ---------------- Handlers ---------------- */
+  const onChangePhoneCode = (val: string) => {
+    setFormData((p) => ({ ...p, phoneCode: val }));
+    if (errors.phone) setErrors((e) => ({ ...e, phone: "" }));
+  };
+
+  const onChangePhoneNational = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digitsOnly = e.target.value.replace(/\D/g, "");
+    const max = getCountry(formData.phoneCode).nationalMax;
+    setFormData((p) => ({ ...p, phoneNational: digitsOnly.slice(0, max) }));
+    if (errors.phone) setErrors((er) => ({ ...er, phone: "" }));
+  };
+
+  /* ---------------- UI ---------------- */
   if (!selectedRole) {
     return (
       <div className="min-h-screen bg-background">
@@ -191,10 +212,7 @@ const Register = () => {
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
-              <Card
-                className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 group"
-                onClick={() => setSelectedRole("company")}
-              >
+              <Card className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 group" onClick={() => setSelectedRole("company")}>
                 <CardHeader>
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                     <Building2 className="h-6 w-6 text-primary" />
@@ -204,10 +222,7 @@ const Register = () => {
                 </CardHeader>
               </Card>
 
-              <Card
-                className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 group"
-                onClick={() => setSelectedRole("customer")}
-              >
+              <Card className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 group" onClick={() => setSelectedRole("customer")}>
                 <CardHeader>
                   <div className="h-12 w-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4 group-hover:bg-accent/20 transition-colors">
                     <User className="h-6 w-6 text-accent-foreground" />
@@ -260,7 +275,6 @@ const Register = () => {
                   {errors.email && <p className="text-sm text-destructive mt-1">{errors.email}</p>}
                 </div>
 
-                {/* ✅ Confirm Email field (added) */}
                 <div>
                   <Label htmlFor="confirmEmail">Confirm Email *</Label>
                   <Input
@@ -271,21 +285,48 @@ const Register = () => {
                     className={errors.confirmEmail ? "border-destructive" : ""}
                     placeholder="Re-enter your email"
                   />
-                  {errors.confirmEmail && (
-                    <p className="text-sm text-destructive mt-1">{errors.confirmEmail}</p>
-                  )}
+                  {errors.confirmEmail && <p className="text-sm text-destructive mt-1">{errors.confirmEmail}</p>}
                 </div>
 
+                {/* Phone: country code + national number */}
                 <div>
-                  <Label htmlFor="phone">Phone Number *</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className={errors.phone ? "border-destructive" : ""}
-                    placeholder="+966 50 123 4567"
-                  />
+                  <Label>Phone Number *</Label>
+                  <div className="flex gap-2 items-center">
+                    <Select value={formData.phoneCode} onValueChange={onChangePhoneCode}>
+                      <SelectTrigger className="w-40">
+                        <div className="flex items-center gap-2">
+                          <span>{getCountry(formData.phoneCode).flag}</span>
+                          <span className="font-medium">{getCountry(formData.phoneCode).code}</span>
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COUNTRY_OPTIONS.map((c) => (
+                          <SelectItem key={c.code} value={c.code}>
+                            <span className="inline-flex items-center gap-2">
+                              <span>{c.flag}</span>
+                              <span className="font-medium">{c.code}</span>
+                              <span className="text-muted-foreground ml-2 hidden md:inline">{c.label}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Input
+                      inputMode="numeric"
+                      pattern="\d*"
+                      value={formData.phoneNational}
+                      onChange={onChangePhoneNational}
+                      placeholder={getCountry(formData.phoneCode).code === "+966" ? "5XXXXXXXX" : "national number"}
+                      className={`flex-1 ${errors.phone ? "border-destructive" : ""}`}
+                      maxLength={getCountry(formData.phoneCode).nationalMax}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {getCountry(formData.phoneCode).code === "+966"
+                      ? "Start with 5 (not 05). 9 digits total."
+                      : `Up to ${getCountry(formData.phoneCode).nationalMax} digits.`}
+                  </p>
                   {errors.phone && <p className="text-sm text-destructive mt-1">{errors.phone}</p>}
                 </div>
 
@@ -340,9 +381,7 @@ const Register = () => {
                     className={errors.confirmPassword ? "border-destructive" : ""}
                     placeholder="••••••••"
                   />
-                  {errors.confirmPassword && (
-                    <p className="text-sm text-destructive mt-1">{errors.confirmPassword}</p>
-                  )}
+                  {errors.confirmPassword && <p className="text-sm text-destructive mt-1">{errors.confirmPassword}</p>}
                 </div>
 
                 <div className="flex gap-3 pt-4">

@@ -1,3 +1,4 @@
+// src/pages/AdminDashboard.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,26 @@ type CompanyDoc = {
 
 const STATUS_FILTERS: Array<Status | "all"> = ["all", "pending_review", "approved", "rejected", "draft"];
 
+/** Robust Firestore Timestamp -> nice label */
+const formatCreatedAt = (ts: any) => {
+  try {
+    const d =
+      ts?.toDate?.() ??
+      (ts?.seconds ? new Date(ts.seconds * 1000) : undefined) ??
+      (ts instanceof Date ? ts : undefined);
+    if (!d) return "—";
+    return new Intl.DateTimeFormat("en-GB", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(d);
+  } catch {
+    return "—";
+  }
+};
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -79,8 +100,8 @@ export default function AdminDashboard() {
       (snap) => {
         const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as PropertyRow[];
         rows.sort((a, b) => {
-          const ta = a.createdAt?.toMillis?.() ?? 0;
-          const tb = b.createdAt?.toMillis?.() ?? 0;
+          const ta = a.createdAt?.toMillis?.() ?? (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+          const tb = b.createdAt?.toMillis?.() ?? (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
           return tb - ta;
         });
         setProperties(rows);
@@ -187,7 +208,6 @@ export default function AdminDashboard() {
       if (!snap.exists()) throw new Error("Property not found.");
       const current = snap.data() as PropertyRow;
 
-      // لا ترفض إلا الـ pending_review فقط
       if (current.status !== "pending_review") {
         toast({
           title: "Not allowed",
@@ -294,6 +314,7 @@ export default function AdminDashboard() {
                   <TableHead>Company</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Location</TableHead>
+                  <TableHead>Created</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -303,10 +324,8 @@ export default function AdminDashboard() {
                   const company = companyByUid[p.ownerUid] || {};
                   const companyName = company.companyName || "—";
                   const location = [p.city || "", p.neighborhood || ""].filter(Boolean).join(" — ");
+                  const createdLabel = formatCreatedAt(p.createdAt);
 
-                  // إظهار الأزرار:
-                  // - Approve فقط عندما تكون Pending
-                  // - Reject فقط عندما تكون Pending
                   const canApprove = p.status === "pending_review";
                   const canReject = p.status === "pending_review";
 
@@ -316,6 +335,7 @@ export default function AdminDashboard() {
                       <TableCell>{companyName}</TableCell>
                       <TableCell>{p.type}</TableCell>
                       <TableCell>{location || "—"}</TableCell>
+                      <TableCell>{createdLabel}</TableCell>
                       <TableCell><StatusBadge status={p.status} /></TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -332,17 +352,20 @@ export default function AdminDashboard() {
                           )}
 
                           {canReject && (
-                            <Dialog open={rejectOpen && rejectTargetId === p.id} onOpenChange={(o) => {
-                              if (o && rejectTargetId !== p.id) {
-                                setRejectTargetId(p.id);
-                                setRejectReason("");
-                              }
-                              setRejectOpen(o);
-                              if (!o) {
-                                setRejectTargetId(null);
-                                setRejectReason("");
-                              }
-                            }}>
+                            <Dialog
+                              open={rejectOpen && rejectTargetId === p.id}
+                              onOpenChange={(o) => {
+                                if (o && rejectTargetId !== p.id) {
+                                  setRejectTargetId(p.id);
+                                  setRejectReason("");
+                                }
+                                setRejectOpen(o);
+                                if (!o) {
+                                  setRejectTargetId(null);
+                                  setRejectReason("");
+                                }
+                              }}
+                            >
                               <DialogTrigger asChild>
                                 <Button
                                   size="sm"
