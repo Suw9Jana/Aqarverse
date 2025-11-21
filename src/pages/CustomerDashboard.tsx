@@ -16,7 +16,7 @@ import { collection, getDocs, onSnapshot, query, where, documentId } from "fireb
 import { getDownloadURL, ref as sRef } from "firebase/storage";
 
 type Status = "draft" | "pending_review" | "approved" | "rejected";
-
+//hi
 type PropertyDoc = {
   id: string;
   title: string;
