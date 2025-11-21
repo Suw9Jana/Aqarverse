@@ -9,6 +9,8 @@ import { Building2, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { UserRole } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { MailCheck } from "lucide-react";
+
 
 /* Firebase */
 import { auth, db } from "@/lib/firebase";
@@ -168,11 +170,19 @@ const Register = () => {
         });
       }
 
-      toast({
-        title: "Registration Successful",
-        description: "We sent a verification link to your email. Please verify before logging in.",
-        duration: 10000,
-      });
+ toast({
+  title: "Registration Successful",
+  description: (
+    <div className="flex items-center gap-2">
+      <MailCheck className="h-5 w-5 text-primary" />
+      <span>A verification link has been sent to your email. Please verify before logging in.</span>
+    </div>
+  ),
+  duration: 10000,
+});
+
+
+
       navigate("/login");
     } catch (err: any) {
       const message =
