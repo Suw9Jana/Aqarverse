@@ -11,7 +11,7 @@ import logo from "@/assets/aqarverse_logo.jpg";
 
 /* Firebase */
 import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
+import { onAuthStateChanged, signOut, User as FirebaseUser } from "firebase/auth";
 import {
   collection,
   deleteDoc,
@@ -135,19 +135,35 @@ const CompanyDashboard = () => {
 
   const rejected = useMemo(() => properties.filter((p) => p.status === "rejected"), [properties]);
 
-  const handleLogout = () => {
-    toast({ title: "Logged Out", description: "You have been successfully logged out." });
-    setTimeout(() => navigate("/partners"), 500);
-  };
+  const handleLogout = async () => {
+  try {
+    await signOut(auth); // تسجيل خروج فعلي من Firebase
+
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    });
+
+    navigate("/partners");
+  } catch (err: any) {
+    toast({
+      title: "Logout failed",
+      description: err?.message || "Could not log out.",
+      variant: "destructive",
+    });
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-background">
       <nav className="border-b bg-card">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="AqarVerse" className="h-14 w-14 object-contain" />
-            <span className="text-xl font-bold text-primary">AqarVerse</span>
-          </div>
+         <Link to="/partners" className="flex items-center gap-3 cursor-pointer">
+  <img src={logo} alt="AqarVerse" className="h-14 w-14 object-contain" />
+  <span className="text-xl font-bold text-primary">AqarVerse</span>
+</Link>
+
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => navigate("/profile/edit?role=company")}>
               <User className="h-4 w-4 mr-2" />

@@ -171,6 +171,7 @@ const Register = () => {
       toast({
         title: "Registration Successful",
         description: "We sent a verification link to your email. Please verify before logging in.",
+        duration: 10000,
       });
       navigate("/login");
     } catch (err: any) {

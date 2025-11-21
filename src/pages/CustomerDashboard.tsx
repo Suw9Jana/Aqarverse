@@ -1,6 +1,6 @@
 // src/pages/CustomerDashboard.tsx
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogOut, User, Heart, MapPin, Ruler, Building } from "lucide-react"; // removed DollarSign
@@ -10,7 +10,8 @@ import sarMask from "@/assets/Saudi_Riyal_icon.png"; // ⬅️ your icon (PNG wo
 
 /* Firebase */
 import { auth, db, storage } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+
 import { collection, getDocs, onSnapshot, query, where, documentId } from "firebase/firestore";
 import { getDownloadURL, ref as sRef } from "firebase/storage";
 
@@ -196,10 +197,25 @@ export default function CustomerDashboard() {
     run();
   }, [favIds, toast]);
 
-  const handleLogout = () => {
-    toast({ title: "Logged Out", description: "You have been successfully logged out." });
-    setTimeout(() => navigate("/partners"), 600);
-  };
+const handleLogout = async () => {
+  try {
+    await signOut(auth); // يسوي تسجيل خروج فعلي من Firebase
+
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    });
+
+    navigate("/partners");
+  } catch (err: any) {
+    toast({
+      title: "Logout failed",
+      description: err?.message || "Could not log out.",
+      variant: "destructive",
+    });
+  }
+};
+
 
   const empty = useMemo(
     () => authReady && !loadingFavIds && !loadingProps && properties.length === 0,
@@ -210,25 +226,34 @@ export default function CustomerDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <nav className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="AqarVerse" className="h-14 w-14 object-contain rounded-lg" />
-            <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              AqarVerse
-            </span>
-          </div>
+          <Link
+  to="/partners"
+  className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
+>
+  <img
+    src={logo}
+    alt="AqarVerse"
+    className="h-14 w-14 object-contain rounded-lg"
+  />
+  <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+    AqarVerse
+  </span>
+</Link>
+
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => navigate("/profile/edit?role=customer")}
-              className="hover:bg-primary/10"
-            >
-              <User className="h-4 w-4 mr-2" />
-              Profile
-            </Button>
-            <Button variant="ghost" onClick={handleLogout} className="hover:bg-primary/10">
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
+        <Button
+  variant="ghost"
+  onClick={() => navigate("/profile/edit?role=customer")}
+>
+  <User className="h-4 w-4 mr-2" />
+  Profile
+</Button>
+
+<Button variant="ghost" onClick={handleLogout}>
+  <LogOut className="h-4 w-4 mr-2" />
+  Logout
+</Button>
+
           </div>
         </div>
       </nav>
