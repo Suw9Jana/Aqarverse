@@ -5,12 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, User } from "lucide-react";
+import { Building2, User, MailCheck, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { UserRole } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { MailCheck } from "lucide-react";
-
 
 /* Firebase */
 import { auth, db } from "@/lib/firebase";
@@ -59,6 +57,30 @@ const Register = () => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // helper: set/clear a single field error (used for live validation)
+  const setFieldError = (field: string, message?: string) => {
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (!message) {
+        delete next[field];
+      } else {
+        next[field] = message;
+      }
+      return next;
+    });
+  };
+
+  /* ---------- Derived password rule booleans for UI ---------- */
+  const password = formData.password || "";
+  const hasMinLength = password.length >= 8;
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  const hasSpecial = /[@$!%*?&#]/.test(password);
+
+  const passwordsMatch =
+    formData.confirmPassword.length > 0 && formData.confirmPassword === formData.password;
+
   /* ---------------- Validation ---------------- */
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -104,7 +126,12 @@ const Register = () => {
 
     // Company fields
     if (selectedRole === "company") {
-      if (!formData.location.trim() || formData.location.trim().length < 2 || formData.location.trim().length > 100 || !/^[a-zA-Z0-9\s,\-]+$/.test(formData.location)) {
+      if (
+        !formData.location.trim() ||
+        formData.location.trim().length < 2 ||
+        formData.location.trim().length > 100 ||
+        !/^[a-zA-Z0-9\s,\-]+$/.test(formData.location)
+      ) {
         newErrors.location = "Location must be 2–100 valid characters.";
       }
       const licenseDigits = formData.licenseNumber.replace(/[^\d]/g, "");
@@ -113,10 +140,12 @@ const Register = () => {
       }
     }
 
-    // Password
-    if (!formData.password || formData.password.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])/.test(formData.password)) {
-      newErrors.password = "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.";
+    // Password: must satisfy all rules
+    const passwordValid = hasMinLength && hasUpper && hasLower && hasNumber && hasSpecial;
+    if (!passwordValid) {
+      newErrors.password = "Password does not meet all requirements.";
     }
+
     if (!formData.confirmPassword || formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match.";
     }
@@ -132,14 +161,20 @@ const Register = () => {
 
     // Prevent duplicates (mock kept)
     if (formData.email === "existing@example.com") {
-      toast({ title: "Registration Failed", description: "This account already exists.", variant: "destructive" });
+      toast({
+        title: "Registration Failed",
+        description: "This account already exists.",
+        variant: "destructive",
+      });
       return;
     }
 
     try {
       const cred = await createUserWithEmailAndPassword(auth, formData.email.trim(), formData.password);
       await sendEmailVerification(cred.user);
-      try { await updateProfile(cred.user, { displayName: formData.name.trim() }); } catch {}
+      try {
+        await updateProfile(cred.user, { displayName: formData.name.trim() });
+      } catch {}
 
       const uid = cred.user.uid;
 
@@ -170,18 +205,16 @@ const Register = () => {
         });
       }
 
- toast({
-  title: "Registration Successful",
-  description: (
-    <div className="flex items-center gap-2">
-      <MailCheck className="h-5 w-5 text-primary" />
-      <span>A verification link has been sent to your email. Please verify before logging in.</span>
-    </div>
-  ),
-  duration: 10000,
-});
-
-
+      toast({
+        title: "Registration Successful",
+        description: (
+          <div className="flex items-center gap-2">
+            <MailCheck className="h-5 w-5 text-primary" />
+            <span>A verification link has been sent to your email. Please verify before logging in.</span>
+          </div>
+        ),
+        duration: 10000,
+      });
 
       navigate("/login");
     } catch (err: any) {
@@ -210,6 +243,18 @@ const Register = () => {
     if (errors.phone) setErrors((er) => ({ ...er, phone: "" }));
   };
 
+  /* ---------------- Small UI helper ---------------- */
+  const RuleItem = ({ ok, label }: { ok: boolean; label: string }) => (
+    <div className="flex items-center gap-2 text-xs">
+      {ok ? (
+        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+      ) : (
+        <XCircle className="h-4 w-4 text-destructive" />
+      )}
+      <span className={ok ? "text-emerald-600" : "text-muted-foreground"}>{label}</span>
+    </div>
+  );
+
   /* ---------------- UI ---------------- */
   if (!selectedRole) {
     return (
@@ -223,17 +268,25 @@ const Register = () => {
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
-              <Card className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 group" onClick={() => setSelectedRole("company")}>
+              <Card
+                className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 group"
+                onClick={() => setSelectedRole("company")}
+              >
                 <CardHeader>
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                     <Building2 className="h-6 w-6 text-primary" />
                   </div>
                   <CardTitle>Real Estate Company</CardTitle>
-                  <CardDescription>Upload and manage 3D property models for review and approval</CardDescription>
+                  <CardDescription>
+                    Upload and manage 3D property models for review and approval
+                  </CardDescription>
                 </CardHeader>
               </Card>
 
-              <Card className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 group" onClick={() => setSelectedRole("customer")}>
+              <Card
+                className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 group"
+                onClick={() => setSelectedRole("customer")}
+              >
                 <CardHeader>
                   <div className="h-12 w-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4 group-hover:bg-accent/20 transition-colors">
                     <User className="h-6 w-6 text-accent-foreground" />
@@ -292,11 +345,15 @@ const Register = () => {
                     id="confirmEmail"
                     type="email"
                     value={formData.confirmEmail}
-                    onChange={(e) => setFormData({ ...formData, confirmEmail: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, confirmEmail: e.target.value })
+                    }
                     className={errors.confirmEmail ? "border-destructive" : ""}
                     placeholder="Re-enter your email"
                   />
-                  {errors.confirmEmail && <p className="text-sm text-destructive mt-1">{errors.confirmEmail}</p>}
+                  {errors.confirmEmail && (
+                    <p className="text-sm text-destructive mt-1">{errors.confirmEmail}</p>
+                  )}
                 </div>
 
                 {/* Phone: country code + national number */}
@@ -316,7 +373,9 @@ const Register = () => {
                             <span className="inline-flex items-center gap-2">
                               <span>{c.flag}</span>
                               <span className="font-medium">{c.code}</span>
-                              <span className="text-muted-foreground ml-2 hidden md:inline">{c.label}</span>
+                              <span className="text-muted-foreground ml-2 hidden md:inline">
+                                {c.label}
+                              </span>
                             </span>
                           </SelectItem>
                         ))}
@@ -328,7 +387,11 @@ const Register = () => {
                       pattern="\d*"
                       value={formData.phoneNational}
                       onChange={onChangePhoneNational}
-                      placeholder={getCountry(formData.phoneCode).code === "+966" ? "5XXXXXXXX" : "national number"}
+                      placeholder={
+                        getCountry(formData.phoneCode).code === "+966"
+                          ? "5XXXXXXXX"
+                          : "national number"
+                      }
                       className={`flex-1 ${errors.phone ? "border-destructive" : ""}`}
                       maxLength={getCountry(formData.phoneCode).nationalMax}
                     />
@@ -352,7 +415,9 @@ const Register = () => {
                         className={errors.location ? "border-destructive" : ""}
                         placeholder="Riyadh, Saudi Arabia"
                       />
-                      {errors.location && <p className="text-sm text-destructive mt-1">{errors.location}</p>}
+                      {errors.location && (
+                        <p className="text-sm text-destructive mt-1">{errors.location}</p>
+                      )}
                     </div>
 
                     <div>
@@ -360,43 +425,120 @@ const Register = () => {
                       <Input
                         id="license"
                         value={formData.licenseNumber}
-                        onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, licenseNumber: e.target.value })
+                        }
                         className={errors.licenseNumber ? "border-destructive" : ""}
                         placeholder="12345678"
                       />
-                      {errors.licenseNumber && <p className="text-sm text-destructive mt-1">{errors.licenseNumber}</p>}
+                      {errors.licenseNumber && (
+                        <p className="text-sm text-destructive mt-1">
+                          {errors.licenseNumber}
+                        </p>
+                      )}
                     </div>
                   </>
                 )}
 
+                {/* Password with visual checklist */}
                 <div>
                   <Label htmlFor="password">Password *</Label>
                   <Input
                     id="password"
                     type="password"
                     value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData((prev) => ({ ...prev, password: value }));
+
+                      // keep error in sync: if any rule fails, show a general error
+                      const okNow =
+                        value.length >= 8 &&
+                        /[A-Z]/.test(value) &&
+                        /[a-z]/.test(value) &&
+                        /\d/.test(value) &&
+                        /[@$!%*?&#]/.test(value);
+                      if (!value) {
+                        setFieldError("password", "Password is required.");
+                      } else if (!okNow) {
+                        setFieldError("password", "Password does not meet all requirements.");
+                      } else {
+                        setFieldError("password");
+                      }
+
+                      // If confirm password is already filled, re-check match
+                      if (formData.confirmPassword) {
+                        if (value !== formData.confirmPassword) {
+                          setFieldError("confirmPassword", "Passwords do not match.");
+                        } else {
+                          setFieldError("confirmPassword");
+                        }
+                      }
+                    }}
                     className={errors.password ? "border-destructive" : ""}
                     placeholder="••••••••"
                   />
-                  {errors.password && <p className="text-sm text-destructive mt-1">{errors.password}</p>}
+
+                  {/* Visual checklist */}
+                  <div className="mt-2 space-y-1 rounded-md bg-muted/40 p-2">
+                    <RuleItem ok={hasMinLength} label="At least 8 characters" />
+                    <RuleItem ok={hasUpper} label="Contains an uppercase letter (A–Z)" />
+                    <RuleItem ok={hasLower} label="Contains a lowercase letter (a–z)" />
+                    <RuleItem ok={hasNumber} label="Contains a number (0–9)" />
+                    <RuleItem ok={hasSpecial} label="Contains a special character (@$!%*?&#)" />
+                  </div>
+
+                  {errors.password && (
+                    <p className="text-sm text-destructive mt-1">{errors.password}</p>
+                  )}
                 </div>
 
+                {/* Confirm Password with match indicator */}
                 <div>
                   <Label htmlFor="confirmPassword">Confirm Password *</Label>
                   <Input
                     id="confirmPassword"
                     type="password"
                     value={formData.confirmPassword}
-                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData((prev) => ({ ...prev, confirmPassword: value }));
+
+                      if (!value) {
+                        setFieldError("confirmPassword", "Please confirm your password.");
+                      } else if (value !== formData.password) {
+                        setFieldError("confirmPassword", "Passwords do not match.");
+                      } else {
+                        setFieldError("confirmPassword");
+                      }
+                    }}
                     className={errors.confirmPassword ? "border-destructive" : ""}
                     placeholder="••••••••"
                   />
-                  {errors.confirmPassword && <p className="text-sm text-destructive mt-1">{errors.confirmPassword}</p>}
+
+                  {formData.confirmPassword.length > 0 && (
+                    <div className="mt-2">
+                      <RuleItem
+                        ok={passwordsMatch}
+                        label={passwordsMatch ? "Passwords match" : "Passwords do not match"}
+                      />
+                    </div>
+                  )}
+
+                  {errors.confirmPassword && (
+                    <p className="text-sm text-destructive mt-1">
+                      {errors.confirmPassword}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex gap-3 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setSelectedRole(null)} className="flex-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setSelectedRole(null)}
+                    className="flex-1"
+                  >
                     Back
                   </Button>
                   <Button type="submit" className="flex-1">
