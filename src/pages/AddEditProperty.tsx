@@ -79,8 +79,8 @@ const AddEditProperty = () => {
     livingRooms: "" as string | number,
   });
 
-  const [file, setFile] = useState<File | null>(null);      // 3D model
-  const [image, setImage] = useState<File | null>(null);    // optional cover image
+  const [file, setFile] = useState<File | null>(null); // 3D model
+  const [image, setImage] = useState<File | null>(null); // optional cover image
 
   const [existingFileName, setExistingFileName] = useState<string>("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -88,6 +88,19 @@ const AddEditProperty = () => {
 
   // تتبع حالة الوثيقة الحالية (للإرسال للمراجعة بعد الرفض/الدرافت)
   const [docStatus, setDocStatus] = useState<Status | null>(null);
+
+  // helper لتعيين أو مسح خطأ حقل معيّن (يُستخدم مع الفاليديشن الفوري)
+  const setFieldError = (field: string, message?: string) => {
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (!message) {
+        delete next[field];
+      } else {
+        next[field] = message;
+      }
+      return next;
+    });
+  };
 
   // منع تغيّر قيم number بمجرّد تمرير العجلة أثناء الفوكس
   const preventWheelChange = (e: React.WheelEvent<HTMLInputElement>) => {
@@ -112,13 +125,17 @@ const AddEditProperty = () => {
           typeof d.kitchens === "number"
             ? d.kitchens
             : typeof d.hasKitchen === "boolean"
-            ? d.hasKitchen ? 1 : 0
+            ? d.hasKitchen
+              ? 1
+              : 0
             : "";
         const livingRoomsFromLegacy =
           typeof d.livingRooms === "number"
             ? d.livingRooms
             : typeof d.hasLivingRoom === "boolean"
-            ? d.hasLivingRoom ? 1 : 0
+            ? d.hasLivingRoom
+              ? 1
+              : 0
             : "";
 
         setForm({
@@ -293,7 +310,7 @@ const AddEditProperty = () => {
     const f = ev.target.files?.[0];
     if (f) {
       setFile(f);
-      setErrors((prev) => ({ ...prev, file: "" }));
+      setFieldError("file");
     }
   };
 
@@ -301,8 +318,14 @@ const AddEditProperty = () => {
     const f = ev.target.files?.[0];
     if (f) {
       setImage(f);
-      setErrors((prev) => ({ ...prev, image: "" }));
+      setFieldError("image");
     }
+  };
+
+  const onClearFile = () => {
+    setFile(null);
+    setExistingFileName("");
+    setFieldError("file");
   };
 
   const fileMetaForCreate = (f: File | null) => {
@@ -524,7 +547,7 @@ const AddEditProperty = () => {
       if (file) {
         const meta = fileMetaForCreate(file);
         Object.keys(meta).forEach((k) => {
-          // @ts-expect-error runtime clean
+          
           if (meta[k] === undefined) delete meta[k];
         });
         Object.assign(payload, meta);
@@ -539,7 +562,7 @@ const AddEditProperty = () => {
       if (image) {
         const im = imageMetaForCreate(image);
         Object.keys(im).forEach((k) => {
-          // @ts-expect-error runtime clean
+         
           if (im[k] === undefined) delete im[k];
         });
         Object.assign(payload, im);
@@ -674,9 +697,25 @@ const AddEditProperty = () => {
                   id="price"
                   type="number"
                   inputMode="decimal"
+                  min={1}
                   onWheel={preventWheelChange}
                   value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setForm((prev) => ({ ...prev, price: value }));
+
+                    if (value === "") {
+                      setFieldError("price");
+                      return;
+                    }
+
+                    const num = Number(value);
+                    if (!Number.isFinite(num) || num <= 0) {
+                      setFieldError("price", "Enter a valid positive price.");
+                    } else {
+                      setFieldError("price");
+                    }
+                  }}
                   className={errors.price ? "border-destructive" : ""}
                 />
                 {errors.price && <p className="text-sm text-destructive mt-1">{errors.price}</p>}
@@ -687,9 +726,25 @@ const AddEditProperty = () => {
                   id="size"
                   type="number"
                   inputMode="decimal"
+                  min={1}
                   onWheel={preventWheelChange}
                   value={form.size}
-                  onChange={(e) => setForm({ ...form, size: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setForm((prev) => ({ ...prev, size: value }));
+
+                    if (value === "") {
+                      setFieldError("size");
+                      return;
+                    }
+
+                    const num = Number(value);
+                    if (!Number.isFinite(num) || num <= 0) {
+                      setFieldError("size", "Enter a valid positive size.");
+                    } else {
+                      setFieldError("size");
+                    }
+                  }}
                   className={errors.size ? "border-destructive" : ""}
                 />
                 {errors.size && <p className="text-sm text-destructive mt-1">{errors.size}</p>}
@@ -708,7 +763,22 @@ const AddEditProperty = () => {
                   inputMode="numeric"
                   onWheel={preventWheelChange}
                   value={form.bedrooms}
-                  onChange={(e) => setForm({ ...form, bedrooms: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setForm((prev) => ({ ...prev, bedrooms: value }));
+
+                    if (value === "") {
+                      setFieldError("bedrooms");
+                      return;
+                    }
+
+                    const num = Number(value);
+                    if (!Number.isInteger(num) || num < 0) {
+                      setFieldError("bedrooms", "Bedrooms must be an integer ≥ 0.");
+                    } else {
+                      setFieldError("bedrooms");
+                    }
+                  }}
                   className={errors.bedrooms ? "border-destructive" : ""}
                 />
                 {errors.bedrooms && <p className="text-sm text-destructive mt-1">{errors.bedrooms}</p>}
@@ -723,7 +793,22 @@ const AddEditProperty = () => {
                   inputMode="numeric"
                   onWheel={preventWheelChange}
                   value={form.bathrooms}
-                  onChange={(e) => setForm({ ...form, bathrooms: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setForm((prev) => ({ ...prev, bathrooms: value }));
+
+                    if (value === "") {
+                      setFieldError("bathrooms");
+                      return;
+                    }
+
+                    const num = Number(value);
+                    if (!Number.isInteger(num) || num < 0) {
+                      setFieldError("bathrooms", "Bathrooms must be an integer ≥ 0.");
+                    } else {
+                      setFieldError("bathrooms");
+                    }
+                  }}
                   className={errors.bathrooms ? "border-destructive" : ""}
                 />
                 {errors.bathrooms && <p className="text-sm text-destructive mt-1">{errors.bathrooms}</p>}
@@ -741,7 +826,22 @@ const AddEditProperty = () => {
                   inputMode="numeric"
                   onWheel={preventWheelChange}
                   value={form.kitchens}
-                  onChange={(e) => setForm({ ...form, kitchens: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setForm((prev) => ({ ...prev, kitchens: value }));
+
+                    if (value === "") {
+                      setFieldError("kitchens");
+                      return;
+                    }
+
+                    const num = Number(value);
+                    if (!Number.isInteger(num) || num < 0) {
+                      setFieldError("kitchens", "Kitchens must be an integer ≥ 0.");
+                    } else {
+                      setFieldError("kitchens");
+                    }
+                  }}
                   className={errors.kitchens ? "border-destructive" : ""}
                 />
                 {errors.kitchens && <p className="text-sm text-destructive mt-1">{errors.kitchens}</p>}
@@ -756,7 +856,22 @@ const AddEditProperty = () => {
                   inputMode="numeric"
                   onWheel={preventWheelChange}
                   value={form.livingRooms}
-                  onChange={(e) => setForm({ ...form, livingRooms: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setForm((prev) => ({ ...prev, livingRooms: value }));
+
+                    if (value === "") {
+                      setFieldError("livingRooms");
+                      return;
+                    }
+
+                    const num = Number(value);
+                    if (!Number.isInteger(num) || num < 0) {
+                      setFieldError("livingRooms", "Living rooms must be an integer ≥ 0.");
+                    } else {
+                      setFieldError("livingRooms");
+                    }
+                  }}
                   className={errors.livingRooms ? "border-destructive" : ""}
                 />
                 {errors.livingRooms && <p className="text-sm text-destructive mt-1">{errors.livingRooms}</p>}
@@ -774,17 +889,52 @@ const AddEditProperty = () => {
                       errors.file ? "border-destructive" : "border-border"
                     }`}
                   >
-                    <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      {file ? file.name : existingFileName || "Click to upload or drag and drop"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">Maximum file size: 50MB</p>
+                    {/* حالة: لا يوجد ملف بعد */}
+                    {!file && !existingFileName && (
+                      <>
+                        <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Click to upload or drag and drop</p>
+                      </>
+                    )}
+
+                    {/* حالة: يوجد ملف (جديد أو قديم) */}
+                    {(file || existingFileName) && (
+                      <>
+                        <p className="text-sm font-medium text-foreground">
+                          {file ? file.name : existingFileName}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Remove file.
+                        </p>
+                        <button
+                          type="button"
+                          className="mt-2 text-xs underline text-primary"
+                          onClick={(ev) => {
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            onClearFile();
+                          }}
+                        >
+                          Remove file
+                        </button>
+                      </>
+                    )}
+
+                    <p className="text-xs text-muted-foreground mt-3">Maximum file size: 50MB</p>
                     {!ENABLE_STORAGE && (
-                      <p className="text-xs text-muted-foreground mt-1">Storage disabled — only file metadata will be saved.</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Storage disabled — only file metadata will be saved.
+                      </p>
                     )}
                   </div>
                 </label>
-                <input id="model" type="file" accept=".fbx,.glb,.gltf" onChange={onFile} className="hidden" />
+                <input
+                  id="model"
+                  type="file"
+                  accept=".fbx,.glb,.gltf"
+                  onChange={onFile}
+                  className="hidden"
+                />
               </div>
               {errors.file && <p className="text-sm text-destructive mt-1">{errors.file}</p>}
             </div>
@@ -806,7 +956,13 @@ const AddEditProperty = () => {
                     <p className="text-xs text-muted-foreground mt-1">Max 10MB</p>
                   </div>
                 </label>
-                <input id="image" type="file" accept="image/png,image/jpeg,image/webp" onChange={onImage} className="hidden" />
+                <input
+                  id="image"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={onImage}
+                  className="hidden"
+                />
               </div>
               {errors.image && <p className="text-sm text-destructive mt-1">{errors.image}</p>}
             </div>
