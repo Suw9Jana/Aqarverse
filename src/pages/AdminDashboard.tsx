@@ -9,7 +9,13 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Search, LogOut, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/aqarverse_logo.jpg";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +29,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 /* Firebase */
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
 import {
   collection,
   doc,
@@ -55,7 +62,13 @@ type CompanyDoc = {
   Location?: string;
 };
 
-const STATUS_FILTERS: Array<Status | "all"> = ["all", "pending_review", "approved", "rejected", "draft"];
+const STATUS_FILTERS: Array<Status | "all"> = [
+  "all",
+  "pending_review",
+  "approved",
+  "rejected",
+  "draft",
+];
 
 /** Robust Firestore Timestamp -> nice label */
 const formatCreatedAt = (ts: any) => {
@@ -98,10 +111,17 @@ export default function AdminDashboard() {
     const unsub = onSnapshot(
       collection(db, "Property"),
       (snap) => {
-        const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as PropertyRow[];
+        const rows = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        })) as PropertyRow[];
         rows.sort((a, b) => {
-          const ta = a.createdAt?.toMillis?.() ?? (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
-          const tb = b.createdAt?.toMillis?.() ?? (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+          const ta =
+            a.createdAt?.toMillis?.() ??
+            (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+          const tb =
+            b.createdAt?.toMillis?.() ??
+            (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
           return tb - ta;
         });
         setProperties(rows);
@@ -145,7 +165,9 @@ export default function AdminDashboard() {
       if (!q) return true;
 
       const companyName = companyByUid[p.ownerUid]?.companyName || "";
-      const location = [p.city || "", p.neighborhood || ""].filter(Boolean).join(" ");
+      const location = [p.city || "", p.neighborhood || ""]
+        .filter(Boolean)
+        .join(" ");
 
       return (
         (p.title || "").toLowerCase().includes(q) ||
@@ -164,15 +186,26 @@ export default function AdminDashboard() {
       const current = snap.data() as PropertyRow;
 
       if (current.status === "draft") {
-        toast({ title: "Not allowed", description: "Cannot approve a draft property.", variant: "destructive" });
+        toast({
+          title: "Not allowed",
+          description: "Cannot approve a draft property.",
+          variant: "destructive",
+        });
         return;
       }
       if (current.status === "rejected") {
-        toast({ title: "Not allowed", description: "Cannot approve a rejected property.", variant: "destructive" });
+        toast({
+          title: "Not allowed",
+          description: "Cannot approve a rejected property.",
+          variant: "destructive",
+        });
         return;
       }
       if (current.status === "approved") {
-        toast({ title: "Already approved", description: "This property is already approved." });
+        toast({
+          title: "Already approved",
+          description: "This property is already approved.",
+        });
         return;
       }
 
@@ -200,7 +233,11 @@ export default function AdminDashboard() {
   const confirmReject = async () => {
     if (!rejectTargetId) return;
     if (!rejectReason.trim()) {
-      toast({ title: "Reason required", description: "Please provide a rejection reason.", variant: "destructive" });
+      toast({
+        title: "Reason required",
+        description: "Please provide a rejection reason.",
+        variant: "destructive",
+      });
       return;
     }
     try {
@@ -228,7 +265,10 @@ export default function AdminDashboard() {
       setRejectOpen(false);
       setRejectTargetId(null);
       setRejectReason("");
-      toast({ title: "Rejected", description: "Property has been rejected with your reason." });
+      toast({
+        title: "Rejected",
+        description: "Property has been rejected with your reason.",
+      });
     } catch (err: any) {
       toast({
         title: "Reject failed",
@@ -238,9 +278,24 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleLogout = () => {
-    toast({ title: "Logged Out", description: "You have been successfully logged out." });
-    setTimeout(() => navigate("/partners"), 600);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+        duration: 4000,
+      });
+
+      navigate("/partners");
+    } catch (err: any) {
+      toast({
+        title: "Logout failed",
+        description: err?.message || "Could not log out.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -275,7 +330,10 @@ export default function AdminDashboard() {
               className="pl-10"
             />
           </div>
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as Status | "all")}>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value as Status | "all")}
+          >
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
@@ -286,7 +344,8 @@ export default function AdminDashboard() {
                     ? "All Status"
                     : s === "pending_review"
                     ? "Pending"
-                    : s.charAt(0).toUpperCase() + s.slice(1).replace("_", " ")}
+                    : s.charAt(0).toUpperCase() +
+                      s.slice(1).replace("_", " ")}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -302,7 +361,9 @@ export default function AdminDashboard() {
         ) : filtered.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">No properties found matching your filters</p>
+              <p className="text-muted-foreground">
+                No properties found matching your filters
+              </p>
             </CardContent>
           </Card>
         ) : (
@@ -323,7 +384,9 @@ export default function AdminDashboard() {
                 {filtered.map((p) => {
                   const company = companyByUid[p.ownerUid] || {};
                   const companyName = company.companyName || "—";
-                  const location = [p.city || "", p.neighborhood || ""].filter(Boolean).join(" — ");
+                  const location = [p.city || "", p.neighborhood || ""]
+                    .filter(Boolean)
+                    .join(" — ");
                   const createdLabel = formatCreatedAt(p.createdAt);
 
                   const canApprove = p.status === "pending_review";
@@ -336,7 +399,9 @@ export default function AdminDashboard() {
                       <TableCell>{p.type}</TableCell>
                       <TableCell>{location || "—"}</TableCell>
                       <TableCell>{createdLabel}</TableCell>
-                      <TableCell><StatusBadge status={p.status} /></TableCell>
+                      <TableCell>
+                        <StatusBadge status={p.status} />
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           {canApprove && (

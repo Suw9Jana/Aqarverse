@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { User, LogOut } from "lucide-react";
+import { User, LogOut, Heart } from "lucide-react";
 import logo from "@/assets/aqarverse_logo.jpg";
 
 /* Firebase */
@@ -21,7 +21,7 @@ export const Navbar = () => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [role, setRole] = useState<string | null>(null);
 
-  // Listen to Firebase Auth state + detect role
+  // Listen to Auth + detect role
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
@@ -40,6 +40,12 @@ export const Navbar = () => {
             return;
           }
 
+          const adminDoc = await getDoc(doc(db, "Admin", u.uid));
+          if (adminDoc.exists()) {
+            setRole("admin");
+            return;
+          }
+
           setRole(null);
         } catch {
           setRole(null);
@@ -52,7 +58,7 @@ export const Navbar = () => {
     return () => unsub();
   }, []);
 
-  // Logout with toast
+  // Logout
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -60,7 +66,7 @@ export const Navbar = () => {
       toast({
         title: "Logged Out",
         description: "You have been successfully logged out.",
-        duration: 10000, // 10 seconds
+        duration: 8000,
       });
 
       navigate("/partners");
@@ -77,8 +83,7 @@ export const Navbar = () => {
     <nav className="border-b bg-card sticky top-0 z-50 shadow-sm">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-3 items-center py-4 md:py-5">
-
-          {/* Left empty space */}
+          {/* Left empty */}
           <div className="justify-self-start" />
 
           {/* Center Logo */}
@@ -96,27 +101,47 @@ export const Navbar = () => {
             </span>
           </Link>
 
-          {/* Right Side: User + Toggles */}
+          {/* Right side */}
           <div className="justify-self-end flex items-center gap-2">
             <LanguageToggle />
             <ThemeToggle />
 
             {user ? (
               <>
+                {/* Company Dashboard */}
                 {role === "company" && (
-                  <Button variant="ghost" onClick={() => navigate("/dashboard/company")}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => navigate("/dashboard/company")}
+                  >
                     <User className="h-4 w-4 mr-2" />
                     Dashboard
                   </Button>
                 )}
 
+                {/* Customer → Favorites (يروح لصفحة CustomerDashboard) */}
                 {role === "customer" && (
-                  <Button variant="ghost" onClick={() => navigate("/dashboard/customer")}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => navigate("/dashboard/customer")}
+                  >
+                    <Heart className="h-4 w-4 mr-2 text-primary" />
+                    Favorites
+                  </Button>
+                )}
+
+                {/* Admin */}
+                {role === "admin" && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => navigate("/dashboard/admin")}
+                  >
                     <User className="h-4 w-4 mr-2" />
                     Dashboard
                   </Button>
                 )}
 
+                {/* Logout */}
                 <Button variant="outline" onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" />
                   {t("logout") || "Logout"}

@@ -4,7 +4,13 @@ import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Building2, User, MailCheck, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { UserRole } from "@/types";
@@ -12,16 +18,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 
 /* Firebase */
 import { auth, db } from "@/lib/firebase";
-import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  updateProfile,
+  sendEmailVerification,
+  signOut,               // ⬅️ أضفناه هنا
+} from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 
 /* ---------------- Phone options & helpers ---------------- */
 type CountryOption = {
-  code: string;           // dialing code
-  label: string;          // country name
-  nationalMax: number;    // max digits for national portion
+  code: string; // dialing code
+  label: string; // country name
+  nationalMax: number; // max digits for national portion
   requireLeading5?: boolean; // KSA rule
-  flag: string;           // emoji (swap to SVG if you prefer)
+  flag: string; // emoji (swap to SVG if you prefer)
 };
 
 const COUNTRY_OPTIONS: CountryOption[] = [
@@ -30,7 +41,7 @@ const COUNTRY_OPTIONS: CountryOption[] = [
   { code: "+965", label: "Kuwait", nationalMax: 8, flag: "🇰🇼" },
   { code: "+974", label: "Qatar", nationalMax: 8, flag: "🇶🇦" },
   { code: "+973", label: "Bahrain", nationalMax: 8, flag: "🇧🇭" },
-  { code: "+20",  label: "Egypt", nationalMax: 10, flag: "🇪🇬" },
+  { code: "+20", label: "Egypt", nationalMax: 10, flag: "🇪🇬" },
 ];
 
 const getCountry = (code: string) =>
@@ -79,7 +90,8 @@ const Register = () => {
   const hasSpecial = /[@$!%*?&#]/.test(password);
 
   const passwordsMatch =
-    formData.confirmPassword.length > 0 && formData.confirmPassword === formData.password;
+    formData.confirmPassword.length > 0 &&
+    formData.confirmPassword === formData.password;
 
   /* ---------------- Validation ---------------- */
   const validateForm = () => {
@@ -97,7 +109,10 @@ const Register = () => {
     }
     if (!formData.confirmEmail.trim()) {
       newErrors.confirmEmail = "Please re-enter your email.";
-    } else if (formData.email.trim().toLowerCase() !== formData.confirmEmail.trim().toLowerCase()) {
+    } else if (
+      formData.email.trim().toLowerCase() !==
+      formData.confirmEmail.trim().toLowerCase()
+    ) {
       newErrors.confirmEmail = "Emails do not match.";
     }
 
@@ -141,7 +156,8 @@ const Register = () => {
     }
 
     // Password: must satisfy all rules
-    const passwordValid = hasMinLength && hasUpper && hasLower && hasNumber && hasSpecial;
+    const passwordValid =
+      hasMinLength && hasUpper && hasLower && hasNumber && hasSpecial;
     if (!passwordValid) {
       newErrors.password = "Password does not meet all requirements.";
     }
@@ -170,7 +186,12 @@ const Register = () => {
     }
 
     try {
-      const cred = await createUserWithEmailAndPassword(auth, formData.email.trim(), formData.password);
+      const cred = await createUserWithEmailAndPassword(
+        auth,
+        formData.email.trim(),
+        formData.password
+      );
+
       await sendEmailVerification(cred.user);
       try {
         await updateProfile(cred.user, { displayName: formData.name.trim() });
@@ -205,17 +226,25 @@ const Register = () => {
         });
       }
 
+      // 🔔 Toast مع أيقونة الإيميل
       toast({
-        title: "A verification link has been sent to your email. ",
+        title: "Registration Successful",
         description: (
           <div className="flex items-center gap-2">
             <MailCheck className="h-5 w-5 text-primary" />
-            <span> Please verify your email to complete your registration successfully.</span>
+            <span>
+              A verification link has been sent to your email. Please verify your email before
+              logging in.
+            </span>
           </div>
         ),
         duration: 10000,
       });
 
+      // 🔒 مهم: نسوي تسجيل خروج لأن Firebase يسجل الدخول تلقائي بعد التسجيل
+      await signOut(auth);
+
+      // 👉 بعدها نودّيه لصفحة اللوق إن وهو Guest
       navigate("/login");
     } catch (err: any) {
       const message =
@@ -226,7 +255,12 @@ const Register = () => {
           : err?.code === "auth/weak-password"
           ? "Please choose a stronger password."
           : err?.message || "Registration failed. Please try again.";
-      toast({ title: "Registration Failed", description: message, variant: "destructive" });
+
+      toast({
+        title: "Registration Failed",
+        description: message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -309,7 +343,9 @@ const Register = () => {
         <div className="max-w-md mx-auto">
           <Card>
             <CardHeader>
-              <CardTitle>Create {selectedRole === "company" ? "Company" : "Customer"} Account</CardTitle>
+              <CardTitle>
+                Create {selectedRole === "company" ? "Company" : "Customer"} Account
+              </CardTitle>
               <CardDescription>Fill in your details to get started</CardDescription>
             </CardHeader>
             <CardContent>
@@ -319,11 +355,15 @@ const Register = () => {
                   <Input
                     id="name"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
                     className={errors.name ? "border-destructive" : ""}
                     placeholder="John Doe"
                   />
-                  {errors.name && <p className="text-sm text-destructive mt-1">{errors.name}</p>}
+                  {errors.name && (
+                    <p className="text-sm text-destructive mt-1">{errors.name}</p>
+                  )}
                 </div>
 
                 <div>
@@ -332,11 +372,15 @@ const Register = () => {
                     id="email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
                     className={errors.email ? "border-destructive" : ""}
                     placeholder="john@example.com"
                   />
-                  {errors.email && <p className="text-sm text-destructive mt-1">{errors.email}</p>}
+                  {errors.email && (
+                    <p className="text-sm text-destructive mt-1">{errors.email}</p>
+                  )}
                 </div>
 
                 <div>
@@ -352,7 +396,9 @@ const Register = () => {
                     placeholder="Re-enter your email"
                   />
                   {errors.confirmEmail && (
-                    <p className="text-sm text-destructive mt-1">{errors.confirmEmail}</p>
+                    <p className="text-sm text-destructive mt-1">
+                      {errors.confirmEmail}
+                    </p>
                   )}
                 </div>
 
@@ -360,11 +406,16 @@ const Register = () => {
                 <div>
                   <Label>Phone Number *</Label>
                   <div className="flex gap-2 items-center">
-                    <Select value={formData.phoneCode} onValueChange={onChangePhoneCode}>
+                    <Select
+                      value={formData.phoneCode}
+                      onValueChange={onChangePhoneCode}
+                    >
                       <SelectTrigger className="w-40">
                         <div className="flex items-center gap-2">
                           <span>{getCountry(formData.phoneCode).flag}</span>
-                          <span className="font-medium">{getCountry(formData.phoneCode).code}</span>
+                          <span className="font-medium">
+                            {getCountry(formData.phoneCode).code}
+                          </span>
                         </div>
                       </SelectTrigger>
                       <SelectContent>
@@ -392,16 +443,24 @@ const Register = () => {
                           ? "5XXXXXXXX"
                           : "national number"
                       }
-                      className={`flex-1 ${errors.phone ? "border-destructive" : ""}`}
+                      className={`flex-1 ${
+                        errors.phone ? "border-destructive" : ""
+                      }`}
                       maxLength={getCountry(formData.phoneCode).nationalMax}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     {getCountry(formData.phoneCode).code === "+966"
                       ? "Start with 5 (not 05). 9 digits total."
-                      : `Up to ${getCountry(formData.phoneCode).nationalMax} digits.`}
+                      : `Up to ${
+                          getCountry(formData.phoneCode).nationalMax
+                        } digits.`}
                   </p>
-                  {errors.phone && <p className="text-sm text-destructive mt-1">{errors.phone}</p>}
+                  {errors.phone && (
+                    <p className="text-sm text-destructive mt-1">
+                      {errors.phone}
+                    </p>
+                  )}
                 </div>
 
                 {selectedRole === "company" && (
@@ -411,12 +470,16 @@ const Register = () => {
                       <Input
                         id="location"
                         value={formData.location}
-                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, location: e.target.value })
+                        }
                         className={errors.location ? "border-destructive" : ""}
                         placeholder="Riyadh, Saudi Arabia"
                       />
                       {errors.location && (
-                        <p className="text-sm text-destructive mt-1">{errors.location}</p>
+                        <p className="text-sm text-destructive mt-1">
+                          {errors.location}
+                        </p>
                       )}
                     </div>
 
@@ -426,7 +489,10 @@ const Register = () => {
                         id="license"
                         value={formData.licenseNumber}
                         onChange={(e) =>
-                          setFormData({ ...formData, licenseNumber: e.target.value })
+                          setFormData({
+                            ...formData,
+                            licenseNumber: e.target.value,
+                          })
                         }
                         className={errors.licenseNumber ? "border-destructive" : ""}
                         placeholder="12345678"
@@ -461,7 +527,10 @@ const Register = () => {
                       if (!value) {
                         setFieldError("password", "Password is required.");
                       } else if (!okNow) {
-                        setFieldError("password", "Password does not meet all requirements.");
+                        setFieldError(
+                          "password",
+                          "Password does not meet all requirements."
+                        );
                       } else {
                         setFieldError("password");
                       }
@@ -469,7 +538,10 @@ const Register = () => {
                       // If confirm password is already filled, re-check match
                       if (formData.confirmPassword) {
                         if (value !== formData.confirmPassword) {
-                          setFieldError("confirmPassword", "Passwords do not match.");
+                          setFieldError(
+                            "confirmPassword",
+                            "Passwords do not match."
+                          );
                         } else {
                           setFieldError("confirmPassword");
                         }
@@ -482,14 +554,28 @@ const Register = () => {
                   {/* Visual checklist */}
                   <div className="mt-2 space-y-1 rounded-md bg-muted/40 p-2">
                     <RuleItem ok={hasMinLength} label="At least 8 characters" />
-                    <RuleItem ok={hasUpper} label="Contains an uppercase letter (A–Z)" />
-                    <RuleItem ok={hasLower} label="Contains a lowercase letter (a–z)" />
-                    <RuleItem ok={hasNumber} label="Contains a number (0–9)" />
-                    <RuleItem ok={hasSpecial} label="Contains a special character (@$!%*?&#)" />
+                    <RuleItem
+                      ok={hasUpper}
+                      label="Contains an uppercase letter (A–Z)"
+                    />
+                    <RuleItem
+                      ok={hasLower}
+                      label="Contains a lowercase letter (a–z)"
+                    />
+                    <RuleItem
+                      ok={hasNumber}
+                      label="Contains a number (0–9)"
+                    />
+                    <RuleItem
+                      ok={hasSpecial}
+                      label="Contains a special character (@$!%*?&#)"
+                    />
                   </div>
 
                   {errors.password && (
-                    <p className="text-sm text-destructive mt-1">{errors.password}</p>
+                    <p className="text-sm text-destructive mt-1">
+                      {errors.password}
+                    </p>
                   )}
                 </div>
 
@@ -502,12 +588,21 @@ const Register = () => {
                     value={formData.confirmPassword}
                     onChange={(e) => {
                       const value = e.target.value;
-                      setFormData((prev) => ({ ...prev, confirmPassword: value }));
+                      setFormData((prev) => ({
+                        ...prev,
+                        confirmPassword: value,
+                      }));
 
                       if (!value) {
-                        setFieldError("confirmPassword", "Please confirm your password.");
+                        setFieldError(
+                          "confirmPassword",
+                          "Please confirm your password."
+                        );
                       } else if (value !== formData.password) {
-                        setFieldError("confirmPassword", "Passwords do not match.");
+                        setFieldError(
+                          "confirmPassword",
+                          "Passwords do not match."
+                        );
                       } else {
                         setFieldError("confirmPassword");
                       }
@@ -520,7 +615,11 @@ const Register = () => {
                     <div className="mt-2">
                       <RuleItem
                         ok={passwordsMatch}
-                        label={passwordsMatch ? "Passwords match" : "Passwords do not match"}
+                        label={
+                          passwordsMatch
+                            ? "Passwords match"
+                            : "Passwords do not match"
+                        }
                       />
                     </div>
                   )}
