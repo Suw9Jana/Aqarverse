@@ -206,11 +206,11 @@ const Register = () => {
       }
 
       toast({
-        title: "Registration Successful",
+        title: "A verification link has been sent to your email. ",
         description: (
           <div className="flex items-center gap-2">
             <MailCheck className="h-5 w-5 text-primary" />
-            <span>A verification link has been sent to your email. Please verify before logging in.</span>
+            <span> Please verify your email to complete your registration successfully.</span>
           </div>
         ),
         duration: 10000,
