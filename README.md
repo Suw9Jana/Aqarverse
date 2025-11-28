@@ -26,8 +26,8 @@ React, Vite, Firebase (Auth, Firestore, Storage), Tailwind
 ## Setup
 1. Clone the repo  
 2. Run:
-npm install
-npm run dev
+- npm install
+- npm run dev
 
 
 ## Notes
