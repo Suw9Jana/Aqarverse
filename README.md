@@ -1,21 +1,24 @@
 # AqarVerse Web
 
 This is the web platform of AqarVerse, built with **React + Firebase**.  
-The system allows customers, real estate companies, and admins to manage and browse properties.
+The system supports three user roles: customers, real estate companies, and admins —  
+each using the web platform differently to complement the VR experience.
 
 ### 👤 Customers
-- Browse AqarVerse trusted partners(companies)  
-- View their favorite property   
-- Manage profile  
+- Browse AqarVerse trusted partners (companies)  
+- View their favorite properties  
+- Edit their profile  
 
 ### 🏢 Real Estate Companies
-- Upload 3D property models   
+- Browse AqarVerse trusted partners (companies)  
+- Upload 3D property models (FBX/GLB/GLTF)  
 - Manage property listings (edit/delete)  
-- Manage company profile  
+- Edit their profile  
 
 ### 🛠 Admin
-- Approve/reject property submissions  
-  
+- Review submitted 3D property models  
+- Approve or reject company property submissions  
+- Provide feedback to companies when rejecting a model  
 
 ## Tech Used
 React, Vite, Firebase (Auth, Firestore, Storage), Tailwind
