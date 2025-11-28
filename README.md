@@ -1,7 +1,7 @@
 # AqarVerse Web
 
 This is the web platform of AqarVerse, built with **React + Firebase**.  
-The system supports three user roles: customers, real estate companies, and admins —  
+The system supports three user roles: customers, real estate companies, and admins ,
 each using the web platform differently to complement the VR experience.
 
 ### 👤 Customers
