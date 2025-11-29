@@ -227,19 +227,31 @@ const Register = () => {
       }
 
       // 🔔 Toast مع أيقونة الإيميل
-      toast({
-        title: "Registration Successful",
-        description: (
-          <div className="flex items-center gap-2">
-            <MailCheck className="h-5 w-5 text-primary" />
-            <span>
-              A verification link has been sent to your email. Please verify your email before
-              logging in.
-            </span>
-          </div>
-        ),
-        duration: 10000,
-      });
+    toast({
+  duration: 12000,
+
+  className:
+    "border border-yellow-400 bg-white shadow-lg px-6 py-5 rounded-xl flex items-start gap-4",
+
+  title: "", // لازم يكون نص فقط
+
+  description: (
+    <div className="text-sm text-gray-700 leading-relaxed">
+      <div className="flex items-center gap-2 text-lg font-bold text-yellow-600 mb-2">
+        <MailCheck className="h-6 w-6" />
+        Email Verification Required
+      </div>
+
+      We've sent a verification link to your email address.
+      <br />
+      <span className="font-medium text-yellow-700">
+        Please check your inbox and verify your account before logging in.
+      </span>
+    </div>
+  ),
+});
+
+
 
       // 🔒 مهم: نسوي تسجيل خروج لأن Firebase يسجل الدخول تلقائي بعد التسجيل
       await signOut(auth);
