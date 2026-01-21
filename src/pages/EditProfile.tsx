@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Eye, EyeOff, Upload } from "lucide-react";
+import { ArrowLeft, Save, Eye, EyeOff, Upload, CheckCircle2, XCircle } from "lucide-react";
 import logo from "@/assets/aqarverse_logo.jpg";
 
 import {
@@ -54,7 +54,7 @@ const COUNTRY_OPTIONS: CountryOption[] = [
 const getCountry = (code: string) =>
   COUNTRY_OPTIONS.find((c) => c.code === code) || COUNTRY_OPTIONS[0];
 
-/* ---------------- FIXED — NEW WORKING VERSION ---------------- */
+/* ---------------- Phone E.164 helper ---------------- */
 function splitE164(phone?: string): { phoneCode: string; phoneNational: string } {
   if (!phone) return { phoneCode: "+966", phoneNational: "" };
 
@@ -67,11 +67,7 @@ function splitE164(phone?: string): { phoneCode: string; phoneNational: string }
   }
 
   const digits = phone.slice(1).replace(/\D/g, "");
-
-  const sortedOptions = [...COUNTRY_OPTIONS].sort(
-    (a, b) => b.code.length - a.code.length
-  );
-
+  const sortedOptions = [...COUNTRY_OPTIONS].sort((a, b) => b.code.length - a.code.length);
   let matchedOption = getCountry("+966");
   let national = "";
 
@@ -83,16 +79,43 @@ function splitE164(phone?: string): { phoneCode: string; phoneNational: string }
       break;
     }
   }
-
   if (!national) national = digits;
 
-  return {
-    phoneCode: matchedOption.code,
-    phoneNational: national.slice(0, matchedOption.nationalMax),
-  };
+  return { phoneCode: matchedOption.code, phoneNational: national.slice(0, matchedOption.nationalMax) };
 }
-/* --------------------------------------------------------- */
 
+/* ---------------- Password Rules ---------------- */
+const getPasswordRules = (password: string) => {
+  const hasMinLength = password.length >= 8;
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  const hasSpecial = /[@$!%*?&#]/.test(password);
+
+  return { hasMinLength, hasUpper, hasLower, hasNumber, hasSpecial, isValid: hasMinLength && hasUpper && hasLower && hasNumber && hasSpecial };
+};
+
+const RuleItem = ({ ok, label }: { ok: boolean; label: string }) => (
+  <div className="flex items-center gap-2 text-xs">
+    {ok ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-destructive" />}
+    <span className={ok ? "text-emerald-600" : "text-muted-foreground"}>{label}</span>
+  </div>
+);
+
+const PasswordRules = ({ password }: { password: string }) => {
+  const r = getPasswordRules(password);
+  return (
+    <div className="mt-2 space-y-1 rounded-md bg-muted/40 p-2">
+      <RuleItem ok={r.hasMinLength} label="At least 8 characters" />
+      <RuleItem ok={r.hasUpper} label="Uppercase letter (A–Z)" />
+      <RuleItem ok={r.hasLower} label="Lowercase letter (a–z)" />
+      <RuleItem ok={r.hasNumber} label="Number (0–9)" />
+      <RuleItem ok={r.hasSpecial} label="Special character (@$!%*?&#)" />
+    </div>
+  );
+};
+
+/* ---------------- Roles ---------------- */
 type Role = "customer" | "company";
 
 const EditProfile = () => {
@@ -129,6 +152,7 @@ const EditProfile = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pwOpen, setPwOpen] = useState(false);
 
+  /* ---------------- Load Profile ---------------- */
   useEffect(() => {
     (async () => {
       const user = auth.currentUser;
@@ -140,20 +164,12 @@ const EditProfile = () => {
 
       try {
         const uid = user.uid;
-
         const custSnap = await getDoc(doc(db, "Customer", uid));
         if (custSnap.exists()) {
           const d = custSnap.data() as any;
           setRole("customer");
           const split = splitE164(d?.phone || user.phoneNumber || "");
-
-          setFormData((prev) => ({
-            ...prev,
-            fullName: d?.name || "",
-            email: user.email || d?.email || "",
-            phoneCode: split.phoneCode,
-            phoneNational: split.phoneNational,
-          }));
+          setFormData((prev) => ({ ...prev, fullName: d?.name || "", email: user.email || d?.email || "", phoneCode: split.phoneCode, phoneNational: split.phoneNational }));
           setInitialEmail(user.email || d?.email || "");
           setLoading(false);
           return;
@@ -163,9 +179,7 @@ const EditProfile = () => {
         if (compSnap.exists()) {
           const d = compSnap.data() as any;
           setRole("company");
-
           const split = splitE164(d?.phone || user.phoneNumber || "");
-
           setFormData((prev) => ({
             ...prev,
             fullName: d?.companyName || "",
@@ -175,10 +189,8 @@ const EditProfile = () => {
             location: d?.Location || d?.location || "",
             licenseNumber: d?.licenseNumber || "",
           }));
-
           setExistingPhotoUrl(d?.photoUrl || d?.photoURL || "");
           setPhotoPreview(d?.photoUrl || d?.photoURL || "");
-
           setInitialEmail(user.email || d?.email || "");
           setLoading(false);
           return;
@@ -207,54 +219,35 @@ const EditProfile = () => {
       newErrors.email = "Please enter a valid email address.";
     }
 
-    // Phone validation
     const country = getCountry(formData.phoneCode);
     const nationalDigits = formData.phoneNational.replace(/\D/g, "");
 
-    if (!nationalDigits) {
-      newErrors.phone = "Please enter a valid phone number.";
-    } else {
-      if (nationalDigits.length > country.nationalMax) {
-        newErrors.phone = `Phone number too long. Max ${country.nationalMax} digits.`;
-      }
-      if (country.requireLeading5 && !nationalDigits.startsWith("5")) {
-        newErrors.phone = "For +966, start with 5 (not 05).";
-      }
-      if (/^0/.test(nationalDigits)) {
-        newErrors.phone = "Do not include a leading 0 in the national number.";
-      }
+    if (!nationalDigits) newErrors.phone = "Please enter a valid phone number.";
+    else {
+      if (nationalDigits.length > country.nationalMax) newErrors.phone = `Phone number too long. Max ${country.nationalMax} digits.`;
+      if (country.requireLeading5 && !nationalDigits.startsWith("5")) newErrors.phone = "For +966, start with 5 (not 05).";
+      if (/^0/.test(nationalDigits)) newErrors.phone = "Do not include a leading 0 in the national number.";
       const min = country.requireLeading5 ? 9 : Math.min(country.nationalMax, 6);
-      if (nationalDigits.length < min) {
-        newErrors.phone = "Please enter a valid phone number.";
-      }
+      if (nationalDigits.length < min) newErrors.phone = "Please enter a valid phone number.";
     }
 
     if (role === "company") {
       if (!formData.location.trim()) newErrors.location = "Please enter your location.";
-
       const licenseDigits = formData.licenseNumber.replace(/\D/g, "");
-      if (!formData.licenseNumber.trim() || licenseDigits.length < 5) {
-        newErrors.licenseNumber = "Please enter your license number.";
-      }
+      if (!formData.licenseNumber.trim() || licenseDigits.length < 5) newErrors.licenseNumber = "Please enter your license number.";
     }
 
     const wantsPasswordChange = Boolean(formData.oldPassword || formData.password || formData.confirmPassword);
     if (wantsPasswordChange) {
       if (!formData.oldPassword) newErrors.oldPassword = "Current password is required to change your password.";
-
-      if (!formData.password) {
-        newErrors.password = "Please enter a new password.";
-      } else {
-        const pwRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#]).{8,}$/;
-        if (!pwRegex.test(formData.password)) {
-          newErrors.password =
-            "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.";
-        }
+      if (!formData.password) newErrors.password = "Please enter a new password.";
+      else {
+        const pwRules = getPasswordRules(formData.password);
+        if (!pwRules.isValid) newErrors.password = "Password must meet all security requirements.";
       }
 
       if (!formData.confirmPassword) newErrors.confirmPassword = "Please confirm your new password.";
-      else if (formData.password !== formData.confirmPassword)
-        newErrors.confirmPassword = "Passwords do not match.";
+      else if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = "Passwords do not match.";
     }
 
     if (companyPhotoFile) {
@@ -265,6 +258,33 @@ const EditProfile = () => {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  /* ---------------- Handlers ---------------- */
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const onPickCompanyPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setCompanyPhotoFile(f);
+    setPhotoPreview(URL.createObjectURL(f));
+    setErrors((prev) => ({ ...prev, companyPhoto: "" }));
+  };
+
+  const onChangePhoneCode = (val: string) => {
+    setFormData((p) => ({ ...p, phoneCode: val }));
+    if (errors.phone) setErrors((e) => ({ ...e, phone: "" }));
+  };
+
+  const onChangePhoneNational = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digitsOnly = e.target.value.replace(/\D/g, "");
+    const max = getCountry(formData.phoneCode).nationalMax;
+    setFormData((p) => ({ ...p, phoneNational: digitsOnly.slice(0, max) }));
+    if (errors.phone) setErrors((er) => ({ ...er, phone: "" }));
   };
 
   /* ---------------- Submit ---------------- */
@@ -284,11 +304,8 @@ const EditProfile = () => {
 
     try {
       const wantsPasswordChange = Boolean(formData.password);
-
       if (emailChanged || wantsPasswordChange) {
-        if (!formData.oldPassword)
-          throw new Error("Please enter your current password to update email or password.");
-
+        if (!formData.oldPassword) throw new Error("Please enter your current password to update email or password.");
         const cred = EmailAuthProvider.credential(initialEmail || user.email!, formData.oldPassword);
         await reauthenticateWithCredential(user, cred);
       }
@@ -296,7 +313,6 @@ const EditProfile = () => {
       if (emailChanged) await updateEmail(user, formData.email.trim());
       if (formData.password) await updatePassword(user, formData.password);
 
-      // Build E.164
       const country = getCountry(formData.phoneCode);
       const nationalDigits = formData.phoneNational.replace(/\D/g, "");
       const phoneE164 = `${country.code}${nationalDigits}`;
@@ -310,13 +326,11 @@ const EditProfile = () => {
         });
       } else {
         let photoUrlToSave = existingPhotoUrl;
-
         if (companyPhotoFile) {
           setUploadingPhoto(true);
           const safeName = companyPhotoFile.name.replace(/\s+/g, "_");
           const path = `company-photos/${uid}/${Date.now()}_${safeName}`;
           const r = sRef(storage, path);
-
           await uploadBytes(r, companyPhotoFile, { contentType: companyPhotoFile.type || undefined });
           photoUrlToSave = await getDownloadURL(r);
           setUploadingPhoto(false);
@@ -343,48 +357,10 @@ const EditProfile = () => {
           : err?.code === "permission-denied"
           ? "Missing or insufficient Firestore permissions."
           : err?.message || "Update failed. Please try again.";
-
-      if (err?.code === "auth/requires-recent-login") {
-        try {
-          await signOut(auth);
-        } catch {}
-      }
-
+      if (err?.code === "auth/requires-recent-login") await signOut(auth);
       setUploadingPhoto(false);
       toast({ title: "Update Failed", description: message, variant: "destructive" });
     }
-  };
-
-  /* ---------------- Handlers ---------------- */
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-
-    setFormData((prev) => ({ ...prev, [name]: value }));
-
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-  };
-
-  const onPickCompanyPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-
-    setCompanyPhotoFile(f);
-    setPhotoPreview(URL.createObjectURL(f));
-
-    setErrors((prev) => ({ ...prev, companyPhoto: "" }));
-  };
-
-  const onChangePhoneCode = (val: string) => {
-    setFormData((p) => ({ ...p, phoneCode: val }));
-    if (errors.phone) setErrors((e) => ({ ...e, phone: "" }));
-  };
-
-  const onChangePhoneNational = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digitsOnly = e.target.value.replace(/\D/g, "");
-    const max = getCountry(formData.phoneCode).nationalMax;
-
-    setFormData((p) => ({ ...p, phoneNational: digitsOnly.slice(0, max) }));
-    if (errors.phone) setErrors((er) => ({ ...er, phone: "" }));
   };
 
   /* ---------------- UI ---------------- */
@@ -392,11 +368,9 @@ const EditProfile = () => {
     return (
       <div className="min-h-screen bg-background">
         <nav className="border-b bg-card">
-          <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img src={logo} alt="AqarVerse" className="h-10 w-10 object-contain" />
-              <span className="text-xl font-bold text-primary">AqarVerse</span>
-            </div>
+          <div className="container mx-auto px-4 h-16 flex items-center gap-3">
+            <img src={logo} alt="AqarVerse" className="h-10 w-10 object-contain" />
+            <span className="text-xl font-bold text-primary">AqarVerse</span>
           </div>
         </nav>
         <div className="container mx-auto px-4 py-8 max-w-2xl">
@@ -430,48 +404,24 @@ const EditProfile = () => {
 
           <CardContent>
             <form id="editProfileForm" onSubmit={handleSubmit} className="space-y-6">
-              
               {/* FULL NAME */}
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name *</Label>
-                <Input
-                  id="fullName"
-                  name="fullName"
-                  type="text"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  placeholder="Enter your full name"
-                  className={errors.fullName ? "border-destructive" : ""}
-                />
+                <Input id="fullName" name="fullName" type="text" value={formData.fullName} onChange={handleChange} placeholder="Enter your full name" className={errors.fullName ? "border-destructive" : ""} />
                 {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
               </div>
 
               {/* EMAIL */}
               <div className="space-y-2">
                 <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="your.email@example.com"
-                  className={errors.email ? "border-destructive" : ""}
-                  disabled
-                  readOnly
-                  onFocus={(e) => e.currentTarget.blur()}
-                  tabIndex={-1}
-                  aria-disabled="true"
-                />
+                <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} placeholder="your.email@example.com" className={errors.email ? "border-destructive" : ""} disabled readOnly />
                 {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
               </div>
 
               {/* PHONE */}
               <div className="space-y-2">
                 <Label>Phone Number *</Label>
-
                 <div className="flex gap-2 items-center">
-
                   <Select value={formData.phoneCode} onValueChange={onChangePhoneCode}>
                     <SelectTrigger className="w-40">
                       <div className="flex items-center gap-2">
@@ -479,7 +429,6 @@ const EditProfile = () => {
                         <span className="font-medium">{getCountry(formData.phoneCode).code}</span>
                       </div>
                     </SelectTrigger>
-
                     <SelectContent>
                       {COUNTRY_OPTIONS.map((c) => (
                         <SelectItem key={c.code} value={c.code}>
@@ -501,93 +450,42 @@ const EditProfile = () => {
                     pattern="\d*"
                     value={formData.phoneNational}
                     onChange={onChangePhoneNational}
-                    placeholder={
-                      getCountry(formData.phoneCode).code === "+966"
-                        ? "5XXXXXXXX"
-                        : "national number"
-                    }
+                    placeholder={getCountry(formData.phoneCode).code === "+966" ? "5XXXXXXXX" : "national number"}
                     className={`${errors.phone ? "border-destructive" : ""} flex-1`}
                     maxLength={getCountry(formData.phoneCode).nationalMax}
                   />
                 </div>
-
-                <p className="text-xs text-muted-foreground">
-                  {getCountry(formData.phoneCode).code === "+966"
-                    ? "Start with 5 (not 05). 9 digits total."
-                    : `Up to ${getCountry(formData.phoneCode).nationalMax} digits.`}
-                </p>
-
+                <p className="text-xs text-muted-foreground">{getCountry(formData.phoneCode).code === "+966" ? "Start with 5 (not 05). 9 digits total." : `Up to ${getCountry(formData.phoneCode).nationalMax} digits.`}</p>
                 {errors.phone && <p className="text-sm text-destructive">{errors.phone}</p>}
               </div>
 
-              {/* COMPANY ONLY FIELDS */}
+              {/* COMPANY ONLY */}
               {role === "company" && (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="location">Location *</Label>
-                    <Input
-                      id="location"
-                      name="location"
-                      type="text"
-                      value={formData.location}
-                      onChange={handleChange}
-                      placeholder="City, Country"
-                      className={errors.location ? "border-destructive" : ""}
-                    />
+                    <Input id="location" name="location" type="text" value={formData.location} onChange={handleChange} placeholder="City, Country" className={errors.location ? "border-destructive" : ""} />
                     {errors.location && <p className="text-sm text-destructive">{errors.location}</p>}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="licenseNumber">License Number *</Label>
-                    <Input
-                      id="licenseNumber"
-                      name="licenseNumber"
-                      type="text"
-                      value={formData.licenseNumber}
-                      onChange={handleChange}
-                      placeholder="Enter your license number"
-                      className={errors.licenseNumber ? "border-destructive" : ""}
-                    />
+                    <Input id="licenseNumber" name="licenseNumber" type="text" value={formData.licenseNumber} onChange={handleChange} placeholder="Enter your license number" className={errors.licenseNumber ? "border-destructive" : ""} />
                     {errors.licenseNumber && <p className="text-sm text-destructive">{errors.licenseNumber}</p>}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="companyPhoto">Company Photo</Label>
                     <label htmlFor="companyPhoto" className="cursor-pointer">
-                      <div
-                        className={`border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors ${
-                          errors.companyPhoto ? "border-destructive" : "border-border"
-                        }`}
-                      >
+                      <div className={`border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors ${errors.companyPhoto ? "border-destructive" : "border-border"}`}>
                         <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
                         <p className="text-sm text-muted-foreground">Click to upload or drag and drop</p>
-
-                        {photoPreview && (
-                          <div className="mt-3 flex justify-center">
-                            <img
-                              src={photoPreview}
-                              alt="Preview"
-                              className="h-20 w-20 rounded object-cover border"
-                            />
-                          </div>
-                        )}
-
-                        {uploadingPhoto && (
-                          <p className="text-xs text-muted-foreground mt-2">Uploading…</p>
-                        )}
+                        {photoPreview && <div className="mt-3 flex justify-center"><img src={photoPreview} alt="Preview" className="h-20 w-20 rounded object-cover border" /></div>}
+                        {uploadingPhoto && <p className="text-xs text-muted-foreground mt-2">Uploading…</p>}
                       </div>
                     </label>
-                    <input
-                      id="companyPhoto"
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={onPickCompanyPhoto}
-                      className="hidden"
-                    />
-
-                    {errors.companyPhoto && (
-                      <p className="text-sm text-destructive">{errors.companyPhoto}</p>
-                    )}
+                    <input id="companyPhoto" type="file" accept="image/png,image/jpeg,image/webp" onChange={onPickCompanyPhoto} className="hidden" />
+                    {errors.companyPhoto && <p className="text-sm text-destructive">{errors.companyPhoto}</p>}
                   </div>
                 </>
               )}
@@ -596,9 +494,7 @@ const EditProfile = () => {
               <div className="pt-2">
                 <Dialog open={pwOpen} onOpenChange={setPwOpen}>
                   <DialogTrigger asChild>
-                    <Button type="button" variant="secondary">
-                      Change Password
-                    </Button>
+                    <Button type="button" variant="secondary">Change Password</Button>
                   </DialogTrigger>
 
                   <DialogContent>
@@ -608,102 +504,54 @@ const EditProfile = () => {
                     </DialogHeader>
 
                     <div className="space-y-4 py-2">
+                      {/* OLD */}
                       <div className="space-y-2">
                         <Label htmlFor="oldPassword">Current Password</Label>
                         <div className="relative">
-                          <Input
-                            id="oldPassword"
-                            name="oldPassword"
-                            type={showOld ? "text" : "password"}
-                            value={formData.oldPassword}
-                            onChange={handleChange}
-                            placeholder="Required if changing password"
-                            className={`${errors.oldPassword ? "border-destructive" : ""} pr-10`}
-                          />
-                          <button
-                            type="button"
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                            onClick={() => setShowOld((s) => !s)}
-                          >
+                          <Input id="oldPassword" name="oldPassword" type={showOld ? "text" : "password"} value={formData.oldPassword} onChange={handleChange} placeholder="Required if changing password" className={`${errors.oldPassword ? "border-destructive" : ""} pr-10`} />
+                          <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowOld((s) => !s)}>
                             {showOld ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
-                        {errors.oldPassword && (
-                          <p className="text-sm text-destructive">{errors.oldPassword}</p>
-                        )}
+                        {errors.oldPassword && <p className="text-sm text-destructive">{errors.oldPassword}</p>}
                       </div>
 
+                      {/* NEW */}
                       <div className="space-y-2">
                         <Label htmlFor="password">New Password</Label>
                         <div className="relative">
-                          <Input
-                            id="password"
-                            name="password"
-                            type={showNew ? "text" : "password"}
-                            value={formData.password}
-                            onChange={handleChange}
-                            placeholder="Leave blank to keep current password"
-                            className={`${errors.password ? "border-destructive" : ""} pr-10`}
-                            autoComplete="new-password"
-                          />
-                          <button
-                            type="button"
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                            onClick={() => setShowNew((s) => !s)}
-                          >
+                          <Input id="password" name="password" type={showNew ? "text" : "password"} value={formData.password} onChange={handleChange} placeholder="Leave blank to keep current password" className={`${errors.password ? "border-destructive" : ""} pr-10`} autoComplete="new-password" />
+                          <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowNew((s) => !s)}>
                             {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
-                        {errors.password && (
-                          <p className="text-sm text-destructive">{errors.password}</p>
-                        )}
+
+                        {formData.password && <PasswordRules password={formData.password} />}
+                        {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
                       </div>
 
+                      {/* CONFIRM */}
                       <div className="space-y-2">
                         <Label htmlFor="confirmPassword">Confirm New Password</Label>
                         <div className="relative">
-                          <Input
-                            id="confirmPassword"
-                            name="confirmPassword"
-                            type={showConfirm ? "text" : "password"}
-                            value={formData.confirmPassword}
-                            onChange={handleChange}
-                            placeholder="Re-enter your new password"
-                            className={`${errors.confirmPassword ? "border-destructive" : ""} pr-10`}
-                            autoComplete="new-password"
-                          />
-                          <button
-                            type="button"
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                            onClick={() => setShowConfirm((s) => !s)}
-                          >
+                          <Input id="confirmPassword" name="confirmPassword" type={showConfirm ? "text" : "password"} value={formData.confirmPassword} onChange={handleChange} placeholder="Re-enter your new password" className={`${errors.confirmPassword ? "border-destructive" : ""} pr-10`} autoComplete="new-password" />
+                          <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowConfirm((s) => !s)}>
                             {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
-                        {errors.confirmPassword && (
-                          <p className="text-sm text-destructive">{errors.confirmPassword}</p>
-                        )}
+                        {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
                       </div>
                     </div>
 
                     <DialogFooter className="gap-2">
-                      <DialogClose asChild>
-                        <Button type="button" variant="outline">
-                          Cancel
-                        </Button>
-                      </DialogClose>
-                      <Button type="submit" form="editProfileForm">
-                        Save Changes
-                      </Button>
+                      <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                      <Button type="submit" form="editProfileForm">Save Changes</Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
               </div>
 
-              <Button type="submit" className="w-full" disabled={uploadingPhoto}>
-                <Save className="h-4 w-4 mr-2" />
-                {uploadingPhoto ? "Uploading…" : "Save Changes"}
-              </Button>
+              <Button type="submit" className="w-full" disabled={uploadingPhoto}><Save className="h-4 w-4 mr-2" />{uploadingPhoto ? "Uploading…" : "Save Changes"}</Button>
             </form>
           </CardContent>
         </Card>
