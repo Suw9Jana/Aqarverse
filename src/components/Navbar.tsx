@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { User, LogOut, Heart } from "lucide-react";
+import { User, LogOut, Building2 } from "lucide-react"; // ✅ changed
 import logo from "@/assets/aqarverse_logo.jpg";
 
 /* Firebase */
@@ -119,14 +119,14 @@ export const Navbar = () => {
                   </Button>
                 )}
 
-                {/* Customer → Favorites (يروح لصفحة CustomerDashboard) */}
+                {/* Customer → Properties (same page as before: CustomerDashboard) */}
                 {role === "customer" && (
                   <Button
                     variant="ghost"
                     onClick={() => navigate("/dashboard/customer")}
                   >
-                    <Heart className="h-4 w-4 mr-2 text-primary" />
-                    Favorites
+                    <Building2 className="h-4 w-4 mr-2 text-primary" /> {/* ✅ changed */}
+                    Properties {/* ✅ changed */}
                   </Button>
                 )}
 

@@ -11,7 +11,18 @@ import sarMask from "@/assets/Saudi_Riyal_icon.png";
 /* Firebase */
 import { auth, db, storage } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { collection, getDocs, onSnapshot, query, where, documentId } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  onSnapshot,
+  query,
+  where,
+  documentId,
+  doc,
+  setDoc,
+  deleteDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { getDownloadURL, ref as sRef } from "firebase/storage";
 
 type Status = "draft" | "pending_review" | "approved" | "rejected";
@@ -89,7 +100,10 @@ export default function CustomerDashboard() {
   const [loadingAllProps, setLoadingAllProps] = useState(false);
   const [allProperties, setAllProperties] = useState<PropertyDoc[]>([]);
 
-  // 1) listen to favorites
+  // ---- UI: per-item toggle loading ----
+  const [toggling, setToggling] = useState<Record<string, boolean>>({});
+
+  // 1) listen to favorites (ids are doc IDs under Customer/{uid}/favorites/{propertyId})
   useEffect(() => {
     if (!authReady) return;
     if (!uid) {
@@ -193,7 +207,6 @@ export default function CustomerDashboard() {
 
     try {
       for (const ids of chunks) {
-        // IMPORTANT: your collection is "company" (lowercase) in your console + rules
         const qRef = query(collection(db, "company"), where(documentId(), "in", ids));
         const snap = await getDocs(qRef);
 
@@ -214,13 +227,52 @@ export default function CustomerDashboard() {
         });
       }
     } catch {
-      // if company reads fail, keep Unknown Company
+      // keep Unknown Company
     }
 
     return list.map((p) => ({
       ...p,
       companyName: p.companyName || map.get(p.ownerUid) || "Unknown Company",
     }));
+  };
+
+  // ✅ Favorite toggle: add/remove propertyId inside Customer/{uid}/favorites/{propertyId}
+  const toggleFavorite = async (propertyId: string) => {
+    if (!uid) {
+      toast({ title: "Please login as customer", description: "You need a customer session to save properties.", variant: "destructive" });
+      navigate("/login");
+      return;
+    }
+
+    const isFav = favIds.includes(propertyId);
+    setToggling((prev) => ({ ...prev, [propertyId]: true }));
+
+    try {
+      const favRef = doc(db, "Customer", uid, "favorites", propertyId);
+
+      if (isFav) {
+        await deleteDoc(favRef);
+      } else {
+        // store minimal metadata (optional). ID is the important part.
+        await setDoc(
+          favRef,
+          {
+            propertyId,
+            createdAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+      // No manual state update needed; onSnapshot will refresh favIds.
+    } catch (err: any) {
+      toast({
+        title: "Failed to update favorites",
+        description: err?.message || "Could not update favorites.",
+        variant: "destructive",
+      });
+    } finally {
+      setToggling((prev) => ({ ...prev, [propertyId]: false }));
+    }
   };
 
   // 2) fetch Favorite Property docs + resolve image URL + attach company name
@@ -311,6 +363,12 @@ export default function CustomerDashboard() {
     [authReady, loadingFavIds, loadingFavProps, favoriteProperties.length]
   );
 
+  // ✅ "move from all properties to favorites": exclude favorites from All list
+  const nonFavoriteAllProperties = useMemo(() => {
+    const set = new Set(favIds);
+    return allProperties.filter((p) => !set.has(p.id));
+  }, [allProperties, favIds]);
+
   // helper to render company name nicely
   const CompanyBadge = ({ name }: { name?: string }) => (
     <div className="w-full mt-3 flex items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
@@ -383,112 +441,13 @@ export default function CustomerDashboard() {
 
         {authReady && !emptyFavorites && favoriteProperties.length > 0 && (
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {favoriteProperties.map((property, index) => (
-              <Card
-                key={property.id}
-                className="group overflow-hidden hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 border-primary/20 bg-card/80 backdrop-blur-sm hover:-translate-y-2"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="relative w-full aspect-[16/10] overflow-hidden">
-                  {property.imageUrl ? (
-                    <img
-                      src={property.imageUrl}
-                      alt={property.title}
-                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="h-full w-full bg-muted/40 grid place-items-center text-muted-foreground">No image</div>
-                  )}
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-                </div>
-
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <CardTitle className="text-xl group-hover:text-primary transition-colors">{property.title}</CardTitle>
-
-                    <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10">
-                      <Heart className="h-5 w-5 fill-current" />
-                    </Button>
-                  </div>
-
-                  {property.companyName && (
-                    <CardDescription className="flex items-center gap-2 text-sm">
-                      <div className="p-1 rounded bg-primary/10">
-                        <Building className="h-3.5 w-3.5 text-primary" />
-                      </div>
-                      {property.companyName}
-                    </CardDescription>
-                  )}
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  {property.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">{property.description}</p>
-                  )}
-
-                  <div className="space-y-3 pt-2">
-                    <div className="flex items-center gap-3 text-sm p-2 rounded-lg bg-primary/5">
-                      <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
-                      <span className="text-foreground">
-                        {property.city}
-                        {property.neighborhood ? ` — ${property.neighborhood}` : ""}
-                      </span>
-                    </div>
-
-                    {typeof property.size === "number" && (
-                      <div className="flex items-center gap-3 text-sm p-2 rounded-lg bg-primary/5">
-                        <Ruler className="h-4 w-4 text-primary flex-shrink-0" />
-                        <span className="text-foreground">{fmtArea(property.size)}</span>
-                      </div>
-                    )}
-
-                    {typeof property.price === "number" && (
-                      <div className="flex items-center gap-3 text-sm p-2 rounded-lg bg-primary/5">
-                        <SARIcon className="text-primary flex-shrink-0" />
-                        <span className="text-foreground font-semibold">{fmtSAR(property.price)}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <CompanyBadge name={property.companyName} />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {/* -------- All Properties section -------- */}
-        <div className="mt-20">
-          <div className="mb-10">
-            <h2 className="text-3xl font-bold text-foreground mb-2">All Properties</h2>
-            <p className="text-muted-foreground">Browse all available listings</p>
-          </div>
-
-          {loadingAllProps && (
-            <Card>
-              <CardContent className="py-16 text-center">
-                <p className="text-muted-foreground">Loading…</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {!loadingAllProps && allProperties.length === 0 && (
-            <Card className="border-dashed border-2 bg-card/50 backdrop-blur-sm">
-              <CardContent className="py-16 text-center">
-                <p className="text-lg font-medium text-foreground mb-2">No properties found</p>
-                <p className="text-muted-foreground">Check back later</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {!loadingAllProps && allProperties.length > 0 && (
-            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {allProperties.map((property, index) => (
+            {favoriteProperties.map((property, index) => {
+              const busy = !!toggling[property.id];
+              return (
                 <Card
                   key={property.id}
                   className="group overflow-hidden hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 border-primary/20 bg-card/80 backdrop-blur-sm hover:-translate-y-2"
-                  style={{ animationDelay: `${index * 80}ms` }}
+                  style={{ animationDelay: `${index * 100}ms` }}
                 >
                   <div className="relative w-full aspect-[16/10] overflow-hidden">
                     {property.imageUrl ? (
@@ -505,16 +464,21 @@ export default function CustomerDashboard() {
                   </div>
 
                   <CardHeader className="pb-4">
-                    <CardTitle className="text-xl group-hover:text-primary transition-colors">{property.title}</CardTitle>
+                    <div className="flex items-start justify-between mb-3">
+                      <CardTitle className="text-xl group-hover:text-primary transition-colors">{property.title}</CardTitle>
 
-                    {property.companyName && (
-                      <CardDescription className="flex items-center gap-2 text-sm mt-2">
-                        <div className="p-1 rounded bg-primary/10">
-                          <Building className="h-3.5 w-3.5 text-primary" />
-                        </div>
-                        {property.companyName}
-                      </CardDescription>
-                    )}
+                      {/* ✅ Unfavorite */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={() => toggleFavorite(property.id)}
+                        disabled={busy}
+                        title="Remove from favorites"
+                      >
+                        <Heart className="h-5 w-5 fill-current" />
+                      </Button>
+                    </div>
                   </CardHeader>
 
                   <CardContent className="space-y-4">
@@ -549,7 +513,111 @@ export default function CustomerDashboard() {
                     <CompanyBadge name={property.companyName} />
                   </CardContent>
                 </Card>
-              ))}
+              );
+            })}
+          </div>
+        )}
+
+        {/* -------- All Properties section -------- */}
+        <div className="mt-20">
+          <div className="mb-10">
+            <h2 className="text-3xl font-bold text-foreground mb-2">All Properties</h2>
+            <p className="text-muted-foreground">Browse all available listings</p>
+          </div>
+
+          {loadingAllProps && (
+            <Card>
+              <CardContent className="py-16 text-center">
+                <p className="text-muted-foreground">Loading…</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {!loadingAllProps && nonFavoriteAllProperties.length === 0 && (
+            <Card className="border-dashed border-2 bg-card/50 backdrop-blur-sm">
+              <CardContent className="py-16 text-center">
+                <p className="text-lg font-medium text-foreground mb-2">No properties found</p>
+                <p className="text-muted-foreground">Check back later</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {!loadingAllProps && nonFavoriteAllProperties.length > 0 && (
+            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+              {nonFavoriteAllProperties.map((property, index) => {
+                const busy = !!toggling[property.id];
+                return (
+                  <Card
+                    key={property.id}
+                    className="group overflow-hidden hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 border-primary/20 bg-card/80 backdrop-blur-sm hover:-translate-y-2"
+                    style={{ animationDelay: `${index * 80}ms` }}
+                  >
+                    <div className="relative w-full aspect-[16/10] overflow-hidden">
+                      {property.imageUrl ? (
+                        <img
+                          src={property.imageUrl}
+                          alt={property.title}
+                          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-muted/40 grid place-items-center text-muted-foreground">No image</div>
+                      )}
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+                    </div>
+
+                    <CardHeader className="pb-4">
+                      <div className="flex items-start justify-between">
+                        <CardTitle className="text-xl group-hover:text-primary transition-colors">{property.title}</CardTitle>
+
+                        {/* ✅ Favorite */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-primary hover:bg-primary/10"
+                          onClick={() => toggleFavorite(property.id)}
+                          disabled={busy}
+                          title="Add to favorites"
+                        >
+                          <Heart className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-4">
+                      {property.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">{property.description}</p>
+                      )}
+
+                      <div className="space-y-3 pt-2">
+                        <div className="flex items-center gap-3 text-sm p-2 rounded-lg bg-primary/5">
+                          <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
+                          <span className="text-foreground">
+                            {property.city}
+                            {property.neighborhood ? ` — ${property.neighborhood}` : ""}
+                          </span>
+                        </div>
+
+                        {typeof property.size === "number" && (
+                          <div className="flex items-center gap-3 text-sm p-2 rounded-lg bg-primary/5">
+                            <Ruler className="h-4 w-4 text-primary flex-shrink-0" />
+                            <span className="text-foreground">{fmtArea(property.size)}</span>
+                          </div>
+                        )}
+
+                        {typeof property.price === "number" && (
+                          <div className="flex items-center gap-3 text-sm p-2 rounded-lg bg-primary/5">
+                            <SARIcon className="text-primary flex-shrink-0" />
+                            <span className="text-foreground font-semibold">{fmtSAR(property.price)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <CompanyBadge name={property.companyName} />
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
